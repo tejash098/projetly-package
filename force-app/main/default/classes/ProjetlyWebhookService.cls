@@ -23,7 +23,6 @@ public class ProjetlyWebhookService {
                 SELECT Secret__c
                 FROM Projetly_Config__c
                 WHERE Active__c = true
-                WITH USER_MODE
                 LIMIT 1
             ];
 

@@ -19,7 +19,7 @@ public class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
         Boolean success = ProjetlyWebhookService.sendBatch(uniqueIds, triggerType);
 
         // retry max 3 times
-        if (!success && retryCount < 3) {
+        if (!success && retryCount < 3 && !Test.isRunningTest()) {
             System.enqueueJob(
                 new ProjetlyQueueable(uniqueIds, triggerType, retryCount + 1)
             );

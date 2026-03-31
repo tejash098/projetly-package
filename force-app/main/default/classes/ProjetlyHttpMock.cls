@@ -5,7 +5,7 @@ global class ProjetlyHttpMock implements HttpCalloutMock {
 
         HttpResponse res = new HttpResponse();
         res.setStatusCode(200);
-        res.setBody('{"status":"success"}');
+        res.setBody('{"status":true}');
         return res;
     }
 }
