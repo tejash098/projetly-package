@@ -1,0 +1,77 @@
+public class ProjetlyWebhookService {
+
+    public static Boolean sendBatch(Set<Id> oppIds, String triggerType) {
+
+        try {
+            if (oppIds == null || oppIds.isEmpty()) return true;
+
+            // --- BUILD PAYLOAD ---
+            Map<String, Object> payload = new Map<String, Object>();
+            payload.put('org_id', UserInfo.getOrganizationId());
+            payload.put('user_id', UserInfo.getUserId());
+            payload.put('trigger_type', triggerType);
+            payload.put('record_ids', oppIds);
+            payload.put('object', 'Opportunity');
+
+            String body = JSON.serialize(payload);
+
+            // --- SECRET ---
+            String secret = 'fallback_secret';
+
+            List<Projetly_Config__c> configs = [
+                SELECT Secret__c
+                FROM Projetly_Config__c
+                WHERE Active__c = true
+                LIMIT 1
+            ];
+
+            if (!configs.isEmpty() && configs[0].Secret__c != null) {
+                secret = configs[0].Secret__c;
+            }
+
+            // --- SIGNATURE ---
+            String signature = generateSignature(body, secret);
+
+            // --- REQUEST ID ---
+            String requestId = generateRequestId();
+
+            // --- HTTP REQUEST ---
+            HttpRequest req = new HttpRequest();
+            req.setEndpoint('callout:Projetly_Webhook');
+            req.setMethod('POST');
+            req.setHeader('Content-Type', 'application/json');
+            req.setHeader('x-projetly-signature', signature);
+            req.setHeader('x-projetly-request-id', requestId);
+            req.setBody(body);
+
+            Http http = new Http();
+            HttpResponse res = http.send(req);
+
+            Integer statusCode = res.getStatusCode();
+
+            // success
+            if (statusCode >= 200 && statusCode < 300) {
+                return true;
+            }
+
+            return false;
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // --- HMAC SIGNATURE ---
+    private static String generateSignature(String payload, String secret) {
+        Blob key = Blob.valueOf(secret);
+        Blob data = Blob.valueOf(payload);
+        Blob mac = Crypto.generateMac('HmacSHA256', data, key);
+        return EncodingUtil.base64Encode(mac);
+    }
+
+    // --- REQUEST ID ---
+    private static String generateRequestId() {
+        String val = String.valueOf(Crypto.getRandomLong());
+        return val.replace('-', '').substring(0, 16);
+    }
+}
