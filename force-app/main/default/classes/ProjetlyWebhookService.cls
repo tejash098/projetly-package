@@ -40,12 +40,12 @@ public class ProjetlyWebhookService {
 
             // --- HTTP REQUEST ---
             HttpRequest req = new HttpRequest();
-            req.setEndpoint('callout:Projetly_Webhook');
+            req.setEndpoint('callout:Projetly_Webhook/webhook');
             req.setMethod('POST');
             req.setHeader('Content-Type', 'application/json');
-            req.setHeader('x-projetly-signature', signature);
-            req.setHeader('x-projetly-request-id', requestId);
-            req.setHeader('x-projetly-timestamp', timestamp);
+            req.setHeader('x-sf-signature', signature);
+            req.setHeader('x-sf-request-id', requestId);
+            req.setHeader('x-sf-timestamp', timestamp);
             req.setBody(body);
 
             Http http = new Http();
