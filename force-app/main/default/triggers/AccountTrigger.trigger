@@ -3,7 +3,17 @@ trigger AccountTrigger on Account (after update) {
     Set<Id> accountIds = new Set<Id>();
 
     for (Account acc : Trigger.new) {
-        accountIds.add(acc.Id);
+        Account old = Trigger.oldMap.get(acc.Id);
+        if (
+            acc.Name != old.Name ||
+            acc.Description != old.Description ||
+            acc.BillingCountry != old.BillingCountry ||
+            acc.Industry != old.Industry ||
+            acc.Type != old.Type ||
+            acc.Website != old.Website
+        ) {
+            accountIds.add(acc.Id);
+        }
     }
 
     if (accountIds.isEmpty()) return;
