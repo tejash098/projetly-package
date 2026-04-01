@@ -61,21 +61,18 @@ private class ProjetlyTest {
         createConfig();
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
 
+        Test.startTest();
+
+        // Trigger: INSERT → 'create' with account ID
         Account acc = new Account(Name = 'Acc');
         insert acc;
 
-        Opportunity opp = new Opportunity(
-            Name = 'Opp',
-            StageName = 'Prospecting',
-            CloseDate = Date.today(),
-            AccountId = acc.Id
-        );
-        insert opp;
-
-        Test.startTest();
-
+        // Trigger: UPDATE → 'update' with account ID
         acc.Name = 'Updated';
         update acc;
+
+        // Trigger: DELETE → 'delete' with account ID
+        delete acc;
 
         Test.stopTest();
     }
@@ -121,6 +118,32 @@ private class ProjetlyTest {
         Test.stopTest();
     }
 
+    @isTest
+    static void testContactTrigger() {
+
+        createConfig();
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Account acc = new Account(Name = 'Contact Acc');
+        insert acc;
+
+        Contact con = new Contact(LastName = 'Test', AccountId = acc.Id);
+
+        Test.startTest();
+
+        // Trigger: INSERT → sends account ID
+        insert con;
+
+        // Trigger: UPDATE → sends account ID
+        con.LastName = 'Updated';
+        update con;
+
+        // Trigger: DELETE → sends account ID
+        delete con;
+
+        Test.stopTest();
+    }
+
     // ─── New tests ────────────────────────────────────────────────────────────
 
     @isTest
@@ -142,14 +165,11 @@ private class ProjetlyTest {
 
         Test.startTest();
 
-        // Directly invoke queueable with retryCount = 0 using fail mock
-        // sendBatch returns false → queueable should enqueue retry (retryCount = 1)
         Set<Id> ids = new Set<Id>{ opp.Id };
-        System.enqueueJob(new ProjetlyQueueable(ids, 'update', 0));
+        System.enqueueJob(new ProjetlyQueueable(ids, 'update', 'Opportunity', 0));
 
         Test.stopTest();
 
-        // If we reach here without exception the retry branch executed without error
         System.assert(true, 'Retry path completed without exception');
     }
 
@@ -161,12 +181,11 @@ private class ProjetlyTest {
 
         Test.startTest();
 
-        // Empty set — should return immediately without callout or exception
-        Boolean result = ProjetlyWebhookService.sendBatch(new Set<Id>(), 'update');
+        Boolean result = ProjetlyWebhookService.sendBatch(new Set<Id>(), 'update', 'Opportunity');
 
         Test.stopTest();
 
-        System.assertEquals(true, result, 'Empty oppIds should return true (no-op)');
+        System.assertEquals(true, result, 'Empty recordIds should return true (no-op)');
     }
 
     @isTest
@@ -189,7 +208,7 @@ private class ProjetlyTest {
         Test.startTest();
 
         Boolean result = ProjetlyWebhookService.sendBatch(
-            new Set<Id>{ opp.Id }, 'update'
+            new Set<Id>{ opp.Id }, 'update', 'Opportunity'
         );
 
         Test.stopTest();
@@ -218,7 +237,7 @@ private class ProjetlyTest {
         Test.startTest();
 
         Boolean result = ProjetlyWebhookService.sendBatch(
-            new Set<Id>{ opp.Id }, 'update'
+            new Set<Id>{ opp.Id }, 'update', 'Opportunity'
         );
 
         Test.stopTest();

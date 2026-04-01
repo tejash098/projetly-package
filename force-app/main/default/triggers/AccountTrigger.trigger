@@ -1,32 +1,20 @@
-trigger AccountTrigger on Account (after update) {
+trigger AccountTrigger on Account (after insert, after update, after delete) {
 
     Set<Id> accountIds = new Set<Id>();
+    String triggerType;
 
-    for (Account acc : Trigger.new) {
-        Account old = Trigger.oldMap.get(acc.Id);
-        if (
-            acc.Name != old.Name ||
-            acc.Description != old.Description ||
-            acc.BillingCountry != old.BillingCountry ||
-            acc.Industry != old.Industry ||
-            acc.Type != old.Type ||
-            acc.Website != old.Website
-        ) {
-            accountIds.add(acc.Id);
-        }
+    if (Trigger.isDelete) {
+        for (Account acc : Trigger.old) accountIds.add(acc.Id);
+        triggerType = 'delete';
+    } else if (Trigger.isInsert) {
+        for (Account acc : Trigger.new) accountIds.add(acc.Id);
+        triggerType = 'create';
+    } else {
+        for (Account acc : Trigger.new) accountIds.add(acc.Id);
+        triggerType = 'update';
     }
 
-    if (accountIds.isEmpty()) return;
-
-    Set<Id> oppIds = new Set<Id>();
-
-    for (Opportunity opp : [
-        SELECT Id FROM Opportunity WHERE AccountId IN :accountIds
-    ]) {
-        oppIds.add(opp.Id);
-    }
-
-    if (!oppIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(oppIds, 'update', 0));
+    if (!accountIds.isEmpty()) {
+        System.enqueueJob(new ProjetlyQueueable(accountIds, triggerType, 'Account', 0));
     }
 }

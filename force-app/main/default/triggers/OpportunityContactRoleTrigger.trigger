@@ -15,6 +15,6 @@ trigger OpportunityContactRoleTrigger on OpportunityContactRole (
     }
 
     if (!oppIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(oppIds, 'update', 0));
+        System.enqueueJob(new ProjetlyQueueable(oppIds, 'update', 'Opportunity', 0));
     }
 }

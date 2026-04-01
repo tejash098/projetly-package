@@ -14,6 +14,6 @@ trigger OpportunityTrigger on Opportunity (
     }
 
     if (!oppIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(oppIds, type, 0));
+        System.enqueueJob(new ProjetlyQueueable(oppIds, type, 'Opportunity', 0));
     }
 }
