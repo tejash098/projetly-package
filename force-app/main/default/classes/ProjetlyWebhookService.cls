@@ -1,9 +1,9 @@
 public class ProjetlyWebhookService {
 
-    public static Boolean sendBatch(Set<Id> oppIds, String triggerType) {
+    public static Boolean sendBatch(Set<Id> recordIds, String triggerType, String objectType) {
 
         try {
-            if (oppIds == null || oppIds.isEmpty()) return true;
+            if (recordIds == null || recordIds.isEmpty()) return true;
 
             // --- BUILD PAYLOAD ---
             String timestamp = String.valueOf(DateTime.now().getTime());
@@ -12,8 +12,8 @@ public class ProjetlyWebhookService {
             payload.put('org_id', UserInfo.getOrganizationId());
             payload.put('user_id', UserInfo.getUserId());
             payload.put('trigger_type', triggerType);
-            payload.put('record_ids', oppIds);
-            payload.put('object', 'Opportunity');
+            payload.put('record_ids', recordIds);
+            payload.put('object', objectType);
             payload.put('timestamp', timestamp);
 
             String body = JSON.serialize(payload);
