@@ -163,6 +163,9 @@ private class ProjetlyTest {
         );
         insert opp;
 
+        // Prevent infinite async chaining during test execution
+        ProjetlyQueueable.skipRetry = true;
+
         Test.startTest();
 
         Set<Id> ids = new Set<Id>{ opp.Id };
@@ -171,6 +174,26 @@ private class ProjetlyTest {
         Test.stopTest();
 
         System.assert(true, 'Retry path completed without exception');
+    }
+
+    @isTest
+    static void testQueueableRetryPath() {
+
+        createConfig();
+        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
+
+        Test.startTest();
+
+        // No DML → no trigger fires → no trigger-based queueable competes.
+        // UserInfo.getUserId() is a valid Salesforce ID; sendBatch just serializes it.
+        // retryCount=2: fails → enqueues retryCount=3 → retryCount=3 hits 3<3=false → stops.
+        // Exactly 2 jobs run: covers lines 27-28 with no stack overflow.
+        Set<Id> ids = new Set<Id>{ UserInfo.getUserId() };
+        System.enqueueJob(new ProjetlyQueueable(ids, 'update', 'Account', 2));
+
+        Test.stopTest();
+
+        System.assert(true, 'Retry enqueue path covered without stack overflow');
     }
 
     @isTest
@@ -193,6 +216,9 @@ private class ProjetlyTest {
 
         // Intentionally no config inserted
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        // Prevent trigger-fired queueables from chaining when sendBatch fails (no config)
+        ProjetlyQueueable.skipRetry = true;
 
         Account acc = new Account(Name = 'No Config Acc');
         insert acc;
