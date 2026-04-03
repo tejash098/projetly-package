@@ -44,7 +44,7 @@ global class ProjetlyPostInstall implements InstallHandler {
         try {
             String requestId = generateRequestId();
             HttpRequest req = new HttpRequest();
-            req.setEndpoint('callout:Projetly_Backend/package-install');
+            req.setEndpoint('callout:Projetly_Webhook/package-install');
             req.setMethod('POST');
             req.setHeader('Content-Type', 'application/json');
             req.setHeader('x-sf-request-id', requestId);
