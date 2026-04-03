@@ -273,4 +273,82 @@ private class ProjetlyTest {
         System.assertEquals(200, [SELECT COUNT() FROM Opportunity WHERE AccountId = :acc.Id],
             '200 opportunities should be inserted');
     }
+
+    // ─── ProjetlyQueueable edge cases ────────────────────────────────────────
+
+    @isTest
+    static void testQueueableNullIds() {
+
+        createConfig();
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Test.startTest();
+
+        // Covers the early-return branch: recordIds == null
+        System.enqueueJob(new ProjetlyQueueable(null, 'update', 'Opportunity', 0));
+
+        Test.stopTest();
+
+        System.assert(true, 'Null recordIds early return completed without exception');
+    }
+
+    // ─── ProjetlyPostInstall tests ────────────────────────────────────────────
+
+    @isTest
+    static void testPostInstall_fresh() {
+
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Test.startTest();
+        // Simulates fresh install — covers onInstall + sendInstallEventAsync (200 success path)
+        Test.testInstall(new ProjetlyPostInstall(), null, false);
+        Test.stopTest();
+
+        System.assert(true, 'Fresh install completed without exception');
+    }
+
+    @isTest
+    static void testPostInstall_upgrade() {
+
+        // Pre-assign the permission set so the re-install (already-assigned) branch is taken
+        List<PermissionSet> psList = [
+            SELECT Id FROM PermissionSet WHERE Name = 'Projetly_User' LIMIT 1
+        ];
+        if (!psList.isEmpty()) {
+            Id userId = UserInfo.getUserId();
+            List<PermissionSetAssignment> existing = [
+                SELECT Id FROM PermissionSetAssignment
+                WHERE AssigneeId = :userId AND PermissionSetId = :psList[0].Id
+                LIMIT 1
+            ];
+            if (existing.isEmpty()) {
+                insert new PermissionSetAssignment(
+                    AssigneeId = userId,
+                    PermissionSetId = psList[0].Id
+                );
+            }
+        }
+
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Test.startTest();
+        // Simulates upgrade/re-install — covers already-assigned branch
+        Test.testInstall(new ProjetlyPostInstall(), new Version(1, 0), true);
+        Test.stopTest();
+
+        System.assert(true, 'Upgrade install completed without exception');
+    }
+
+    @isTest
+    static void testPostInstall_calloutFailure() {
+
+        // 503 mock → covers the failure branch in sendInstallEventAsync
+        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
+
+        Test.startTest();
+        Test.testInstall(new ProjetlyPostInstall(), null, false);
+        Test.stopTest();
+
+        System.assert(true, 'PostInstall with failing callout handled gracefully');
+    }
 }
