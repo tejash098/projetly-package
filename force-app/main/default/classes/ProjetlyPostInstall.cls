@@ -1,30 +1,53 @@
 global class ProjetlyPostInstall implements InstallHandler {
 
     global void onInstall(InstallContext context) {
+        try {
+            // Get Permission Set
+            List<PermissionSet> psList = [
+                SELECT Id FROM PermissionSet
+                WHERE Name = 'Projetly_User'
+                LIMIT 1
+            ];
 
-        // Get Permission Set
-        PermissionSet ps = [
-            SELECT Id FROM PermissionSet
-            WHERE Name = 'Projetly_User'
-            LIMIT 1
-        ];
+            if (psList.isEmpty()) {
+                System.debug('Projetly_User Permission Set not found. Skipping assignment.');
+                return;
+            }
 
-        // Assign to installing user
-        insert new PermissionSetAssignment(
-            AssigneeId = UserInfo.getUserId(),
-            PermissionSetId = ps.Id
-        );
+            Id psId = psList[0].Id;
+            Id userId = UserInfo.getUserId();
 
-        // notify backend
-        sendInstallEvent();
+            // Check if already assigned (handles re-install / upgrade)
+            List<PermissionSetAssignment> existing = [
+                SELECT Id FROM PermissionSetAssignment
+                WHERE AssigneeId = :userId AND PermissionSetId = :psId
+                LIMIT 1
+            ];
+
+            if (existing.isEmpty()) {
+                insert new PermissionSetAssignment(
+                    AssigneeId = userId,
+                    PermissionSetId = psId
+                );
+            }
+
+            // Fire callout asynchronously to avoid DML-before-callout error
+            sendInstallEventAsync();
+
+        } catch (Exception e) {
+            System.debug('PostInstall error: ' + e.getMessage());
+        }
     }
 
-    private static void sendInstallEvent() {
+    @future(callout=true)
+    private static void sendInstallEventAsync() {
         try {
+            String requestId = generateRequestId();
             HttpRequest req = new HttpRequest();
-            req.setEndpoint('callout:Projetly_Backend/package-install');
+            req.setEndpoint('callout:Projetly_Webhook/package-install');
             req.setMethod('POST');
             req.setHeader('Content-Type', 'application/json');
+            req.setHeader('x-sf-request-id', requestId);
 
             Map<String, Object> payload = new Map<String, Object>();
             payload.put('event', 'package_installed');
@@ -34,9 +57,18 @@ global class ProjetlyPostInstall implements InstallHandler {
             req.setBody(JSON.serialize(payload));
             Http http = new Http();
             HttpResponse res = http.send(req);
-            System.debug('Install event sent: ' + res.getBody());
+
+            if (res.getStatusCode() != 200) {
+                System.debug('Install event failed. Status: ' + res.getStatusCode() + ' Body: ' + res.getBody());
+            } else {
+                System.debug('Install event sent successfully: ' + res.getBody());
+            }
         } catch (Exception e) {
             System.debug('Error sending install event: ' + e.getMessage());
         }
+    }
+
+    private static String generateRequestId() {
+        return EncodingUtil.convertToHex(Crypto.generateAesKey(128)).substring(0, 32);
     }
 }

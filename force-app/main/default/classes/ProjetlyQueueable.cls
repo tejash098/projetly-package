@@ -1,5 +1,7 @@
 public class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
 
+    @TestVisible static Boolean skipRetry = false;
+
     private Set<Id> recordIds;
     private String triggerType;
     private String objectType;
@@ -21,7 +23,7 @@ public class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
         Boolean success = ProjetlyWebhookService.sendBatch(uniqueIds, triggerType, objectType);
 
         // retry max 3 times
-        if (!success && retryCount < 3 && !Test.isRunningTest()) {
+        if (!success && retryCount < 3 && !skipRetry) {
             System.enqueueJob(
                 new ProjetlyQueueable(uniqueIds, triggerType, objectType, retryCount + 1)
             );

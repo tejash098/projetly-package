@@ -6,15 +6,17 @@
       "path": "force-app",
       "default": true,
       "package": "Projetly",
-      "versionDescription": "first version of projetly package"
+      "versionDescription": "first version of projetly package",
+      "postInstallScript": "ProjetlyPostInstall"
     }
   ],
   "name": "projetly-app",
-  "namespace": "",
+  "namespace": "Projetly",
   "sfdcLoginUrl": "https://login.salesforce.com",
   "sourceApiVersion": "66.0",
   "packageAliases": {
-    "Projetly": "0HogK0000001BKnSAM",
-    "Projetly@0.1.0-1": "04tgK000000BCvVQAW"
+    "Projetly": "0HogK0000001D3FSAU",
+    "Projetly@0.1.0-1": "04tgK000000BQFJQA4",
+    "Projetly@0.1.0-2": "04tgK000000BSSPQA4"
   }
 }
