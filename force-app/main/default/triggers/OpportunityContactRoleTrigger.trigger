@@ -15,6 +15,10 @@ trigger OpportunityContactRoleTrigger on OpportunityContactRole (
     }
 
     if (!oppIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(oppIds, 'update', 'Opportunity', 0));
+        try {
+            System.enqueueJob(new ProjetlyQueueable(oppIds, 'update', 'Opportunity', 0));
+        } catch (System.AsyncException e) {
+            System.debug(LoggingLevel.WARN, 'OpportunityContactRoleTrigger: enqueue failed - ' + e.getMessage());
+        }
     }
 }

@@ -13,6 +13,10 @@ trigger ContactTrigger on Contact (after insert, after update, after delete) {
     }
 
     if (!accountIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(accountIds, 'update', 'Account', 0));
+        try {
+            System.enqueueJob(new ProjetlyQueueable(accountIds, 'update', 'Account', 0));
+        } catch (System.AsyncException e) {
+            System.debug(LoggingLevel.WARN, 'ContactTrigger: enqueue failed - ' + e.getMessage());
+        }
     }
 }

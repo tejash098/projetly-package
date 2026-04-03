@@ -2,7 +2,7 @@ global class ProjetlyPostInstall implements InstallHandler {
 
     global void onInstall(InstallContext context) {
         try {
-            // Get Permission Set
+            // --- Optional: Assign Permission Set (non-blocking) ---
             List<PermissionSet> psList = [
                 SELECT Id FROM PermissionSet
                 WHERE Name = 'Projetly_User'
@@ -10,37 +10,36 @@ global class ProjetlyPostInstall implements InstallHandler {
             ];
 
             if (psList.isEmpty()) {
-                System.debug('Projetly_User Permission Set not found. Skipping assignment.');
-                return;
+                System.debug(LoggingLevel.WARN, 'PostInstall: Projetly_User Permission Set not found. Skipping assignment.');
+            } else {
+                Id psId = psList[0].Id;
+                Id userId = UserInfo.getUserId();
+
+                // Check if already assigned (handles re-install / upgrade)
+                List<PermissionSetAssignment> existing = [
+                    SELECT Id FROM PermissionSetAssignment
+                    WHERE AssigneeId = :userId AND PermissionSetId = :psId
+                    LIMIT 1
+                ];
+
+                if (existing.isEmpty()) {
+                    insert new PermissionSetAssignment(
+                        AssigneeId = userId,
+                        PermissionSetId = psId
+                    );
+                }
             }
 
-            Id psId = psList[0].Id;
-            Id userId = UserInfo.getUserId();
-
-            // Check if already assigned (handles re-install / upgrade)
-            List<PermissionSetAssignment> existing = [
-                SELECT Id FROM PermissionSetAssignment
-                WHERE AssigneeId = :userId AND PermissionSetId = :psId
-                LIMIT 1
-            ];
-
-            if (existing.isEmpty()) {
-                insert new PermissionSetAssignment(
-                    AssigneeId = userId,
-                    PermissionSetId = psId
-                );
-            }
-
-            // Fire callout asynchronously to avoid DML-before-callout error
-            sendInstallEventAsync();
+            // Always fire callout — pass context values before entering async scope
+            sendInstallEventAsync(UserInfo.getOrganizationId(), UserInfo.getUserId());
 
         } catch (Exception e) {
-            System.debug('PostInstall error: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, 'PostInstall error: ' + e.getMessage());
         }
     }
 
     @future(callout=true)
-    private static void sendInstallEventAsync() {
+    private static void sendInstallEventAsync(String orgId, String userId) {
         try {
             String requestId = generateRequestId();
             HttpRequest req = new HttpRequest();
@@ -51,20 +50,20 @@ global class ProjetlyPostInstall implements InstallHandler {
 
             Map<String, Object> payload = new Map<String, Object>();
             payload.put('event', 'package_installed');
-            payload.put('org_id', UserInfo.getOrganizationId());
-            payload.put('user_id', UserInfo.getUserId());
+            payload.put('org_id', orgId);
+            payload.put('user_id', userId);
 
             req.setBody(JSON.serialize(payload));
             Http http = new Http();
             HttpResponse res = http.send(req);
 
             if (res.getStatusCode() != 200) {
-                System.debug('Install event failed. Status: ' + res.getStatusCode() + ' Body: ' + res.getBody());
+                System.debug(LoggingLevel.WARN, 'PostInstall: Install event failed. Status: ' + res.getStatusCode() + ' Body: ' + res.getBody());
             } else {
-                System.debug('Install event sent successfully: ' + res.getBody());
+                System.debug(LoggingLevel.INFO, 'PostInstall: Install event sent successfully: ' + res.getBody());
             }
         } catch (Exception e) {
-            System.debug('Error sending install event: ' + e.getMessage());
+            System.debug(LoggingLevel.ERROR, 'PostInstall: Error sending install event: ' + e.getMessage());
         }
     }
 

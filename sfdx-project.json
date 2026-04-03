@@ -1,14 +1,14 @@
 {
   "packageDirectories": [
     {
-      "versionName": "ver 0.1",
-      "versionNumber": "0.2.0.NEXT",
+      "versionName": "ver 0.2.1",
+      "versionNumber": "0.2.1.NEXT",
       "path": "force-app",
       "default": true,
       "package": "Projetly",
-      "versionDescription": "first version of projetly package",
+      "versionDescription": "fix: link issue",
       "postInstallScript": "ProjetlyPostInstall",
-      "ancestorVersion": "0.1.0"
+      "ancestorVersion": "0.2.0"
     }
   ],
   "name": "projetly-app",

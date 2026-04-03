@@ -14,6 +14,10 @@ trigger OpportunityTrigger on Opportunity (
     }
 
     if (!oppIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(oppIds, type, 'Opportunity', 0));
+        try {
+            System.enqueueJob(new ProjetlyQueueable(oppIds, type, 'Opportunity', 0));
+        } catch (System.AsyncException e) {
+            System.debug(LoggingLevel.WARN, 'OpportunityTrigger: enqueue failed - ' + e.getMessage());
+        }
     }
 }

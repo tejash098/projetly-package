@@ -15,6 +15,10 @@ trigger AccountTrigger on Account (after insert, after update, after delete) {
     }
 
     if (!accountIds.isEmpty()) {
-        System.enqueueJob(new ProjetlyQueueable(accountIds, triggerType, 'Account', 0));
+        try {
+            System.enqueueJob(new ProjetlyQueueable(accountIds, triggerType, 'Account', 0));
+        } catch (System.AsyncException e) {
+            System.debug(LoggingLevel.WARN, 'AccountTrigger: enqueue failed - ' + e.getMessage());
+        }
     }
 }

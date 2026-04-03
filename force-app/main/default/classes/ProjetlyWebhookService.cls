@@ -27,7 +27,8 @@ public class ProjetlyWebhookService {
             ];
 
             if (configs.isEmpty() || configs[0].Secret__c == null) {
-                throw new IllegalArgumentException('No active Projetly configuration found.');
+                System.debug(LoggingLevel.WARN, 'ProjetlyWebhookService: No active config found. Skipping webhook.');
+                return false;
             }
 
             String secret = configs[0].Secret__c;
