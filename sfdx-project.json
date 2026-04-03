@@ -2,12 +2,13 @@
   "packageDirectories": [
     {
       "versionName": "ver 0.1",
-      "versionNumber": "0.1.0.NEXT",
+      "versionNumber": "0.2.0.NEXT",
       "path": "force-app",
       "default": true,
       "package": "Projetly",
       "versionDescription": "first version of projetly package",
-      "postInstallScript": "ProjetlyPostInstall"
+      "postInstallScript": "ProjetlyPostInstall",
+      "ancestorVersion": "0.1.0"
     }
   ],
   "name": "projetly-app",
@@ -18,6 +19,7 @@
     "Projetly": "0HogK0000001D3FSAU",
     "Projetly@0.1.0-1": "04tgK000000BQFJQA4",
     "Projetly@0.1.0-2": "04tgK000000BSSPQA4",
-    "Projetly@0.1.0-3": "04tgK000000BSnNQAW"
+    "Projetly@0.1.0-3": "04tgK000000BSnNQAW",
+    "Projetly@0.2.0-1": "04tgK000000BSsDQAW"
   }
 }
