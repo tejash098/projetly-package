@@ -3,16 +3,28 @@ global class ProjetlyPostInstall implements InstallHandler {
     global void onInstall(InstallContext context) {
         try {
             // --- Optional: Assign Permission Set (non-blocking) ---
+            // Query both names to handle managed package namespace prefix
             List<PermissionSet> psList = [
-                SELECT Id FROM PermissionSet
-                WHERE Name = 'Projetly_User'
-                LIMIT 1
+                SELECT Id, Name FROM PermissionSet
+                WHERE Name IN ('Projetly_User', 'Projetly__Projetly_User')
             ];
 
-            if (psList.isEmpty()) {
+            // Prefer unnamespaced name; fall back to managed package name
+            PermissionSet matchedPs = null;
+            for (PermissionSet ps : psList) {
+                if (ps.Name == 'Projetly_User') {
+                    matchedPs = ps;
+                    break;
+                }
+            }
+            if (matchedPs == null && !psList.isEmpty()) {
+                matchedPs = psList[0];
+            }
+
+            if (matchedPs == null) {
                 System.debug(LoggingLevel.WARN, 'PostInstall: Projetly_User Permission Set not found. Skipping assignment.');
             } else {
-                Id psId = psList[0].Id;
+                Id psId = matchedPs.Id;
                 Id userId = UserInfo.getUserId();
 
                 // Check if already assigned (handles re-install / upgrade)

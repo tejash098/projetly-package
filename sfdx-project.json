@@ -1,14 +1,13 @@
 {
   "packageDirectories": [
     {
-      "versionName": "ver 0.2.1",
-      "versionNumber": "0.2.1.NEXT",
+      "versionName": "ver 0.4.0",
+      "versionNumber": "0.4.0.NEXT",
       "path": "force-app",
       "default": true,
       "package": "Projetly",
-      "versionDescription": "fix: link issue",
-      "postInstallScript": "ProjetlyPostInstall",
-      "ancestorVersion": "0.2.0"
+      "versionDescription": "fix: permission set assignment",
+      "postInstallScript": "ProjetlyPostInstall"
     }
   ],
   "name": "projetly-app",
@@ -20,6 +19,8 @@
     "Projetly@0.1.0-1": "04tgK000000BQFJQA4",
     "Projetly@0.1.0-2": "04tgK000000BSSPQA4",
     "Projetly@0.1.0-3": "04tgK000000BSnNQAW",
-    "Projetly@0.2.0-1": "04tgK000000BSsDQAW"
+    "Projetly@0.2.0-1": "04tgK000000BSsDQAW",
+    "Projetly@0.3.0-1": "04tgK000000BVgPQAW",
+    "Projetly@0.4.0-1": "04tgK000000BVlFQAW"
   }
 }
