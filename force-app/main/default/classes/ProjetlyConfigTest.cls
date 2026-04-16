@@ -1,7 +1,7 @@
 @isTest
 private class ProjetlyConfigTest {
 
-    // Verifies that the packaged Default MDT record is present and the secret field is populated.
+    // Verifies that the packaged Projetly_Webhook_Config__mdt.Default record is present and the secret field is populated.
     @isTest
     static void testGetSecret() {
         Test.startTest();
@@ -17,13 +17,11 @@ private class ProjetlyConfigTest {
     // Verifies that generateSignature returns a non-null Base64-encoded HMAC value.
     @isTest
     static void testGenerateSignature() {
-        String payload   = '{"test":"data"}';
-        String timestamp = '2026-01-01T00:00:00Z';
-        String requestId = '1234567890123456';
+        String payload = '{"test":"data"}';
 
         Test.startTest();
 
-        String signature = ProjetlySignatureUtil.generateSignature(payload, timestamp, requestId);
+        String signature = ProjetlySignatureUtil.generateSignature(payload);
 
         Test.stopTest();
 

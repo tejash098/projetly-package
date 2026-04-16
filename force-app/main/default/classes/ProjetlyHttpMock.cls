@@ -7,7 +7,7 @@ global class ProjetlyHttpMock implements HttpCalloutMock {
         System.assertEquals(16, req.getHeader('x-sf-request-id').length());
 
         System.assertNotEquals(null, req.getHeader('x-sf-timestamp'));
-        System.assert(req.getHeader('x-sf-timestamp').contains('T'));
+        System.assert(Long.valueOf(req.getHeader('x-sf-timestamp')) > 0, 'x-sf-timestamp must be epoch ms');
 
         System.assertNotEquals(null, req.getHeader('x-sf-signature'));
 

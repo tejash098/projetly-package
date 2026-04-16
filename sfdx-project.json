@@ -1,12 +1,12 @@
 {
   "packageDirectories": [
     {
-      "versionName": "ver 0.4.0",
-      "versionNumber": "0.4.0.NEXT",
+      "versionName": "ver 0.1",
+      "versionNumber": "0.1.0.NEXT",
       "path": "force-app",
       "default": true,
-      "package": "Projetly",
-      "versionDescription": "refactor: simplified webhook service, fixed contact/OCR triggers"
+      "package": "ProjetlyCore",
+      "versionDescription": ""
     }
   ],
   "name": "projetly-app",
@@ -15,12 +15,6 @@
   "sourceApiVersion": "66.0",
   "packageAliases": {
     "Projetly": "0HogK0000001D3FSAU",
-    "Projetly@0.1.0-1": "04tgK000000BQFJQA4",
-    "Projetly@0.1.0-2": "04tgK000000BSSPQA4",
-    "Projetly@0.1.0-3": "04tgK000000BSnNQAW",
-    "Projetly@0.2.0-1": "04tgK000000BSsDQAW",
-    "Projetly@0.3.0-1": "04tgK000000BVgPQAW",
-    "Projetly@0.4.0-1": "04tgK000000BVlFQAW",
-    "Projetly@0.4.0-2": "04tgK000000BraTQAS"
+    "ProjetlyCore": "0HogK0000002FKjSAM"
   }
 }

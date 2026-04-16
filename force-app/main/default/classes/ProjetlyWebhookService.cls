@@ -6,19 +6,21 @@ public class ProjetlyWebhookService {
             if (recordIds == null || recordIds.isEmpty()) return true;
 
             // --- BUILD PAYLOAD ---
+            String timestamp = generateTimestamp();
+
             Map<String, Object> payload = new Map<String, Object>();
             payload.put('org_id', UserInfo.getOrganizationId());
             payload.put('user_id', UserInfo.getUserId());
             payload.put('trigger_type', triggerType);
             payload.put('record_ids', new List<Id>(recordIds));
             payload.put('object', objectType);
+            payload.put('timestamp', timestamp);
 
             String body = JSON.serialize(payload);
 
             // --- HEADERS ---
-            String timestamp = generateTimestamp();
             String requestId = generateRequestId();
-            String signature = ProjetlySignatureUtil.generateSignature(body, timestamp, requestId);
+            String signature = ProjetlySignatureUtil.generateSignature(body);
 
             // --- HTTP REQUEST ---
             HttpRequest req = new HttpRequest();
@@ -66,7 +68,7 @@ public class ProjetlyWebhookService {
     }
 
     private static String generateTimestamp() {
-        // ISO 8601 UTC format
-        return DateTime.now().formatGMT('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
+        // Epoch milliseconds — matches the format the backend uses for body_timestamp comparison
+        return String.valueOf(DateTime.now().getTime());
     }
 }

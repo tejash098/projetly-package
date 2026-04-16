@@ -1,14 +1,15 @@
-// Reads the packaged secret from the protected Custom Metadata Type.
-// The record is marked protected so subscriber orgs cannot query or read the value.
+// Reads the packaged signing secret from the protected Custom Metadata Type.
+// Projetly_Webhook_Config__mdt is visibility:Protected so subscriber orgs
+// cannot query or access the record or field value.
 public class ProjetlyConfigService {
 
     public static String getSecret() {
-        Projetly_Config__mdt config = Projetly_Config__mdt.getInstance('Default');
+        Projetly_Webhook_Config__mdt cfg = Projetly_Webhook_Config__mdt.getInstance('Default');
 
-        if (config == null || String.isBlank(config.Secret__c)) {
+        if (cfg == null || String.isBlank(cfg.Secret__c)) {
             throw new AuraHandledException('Missing Projetly secret configuration');
         }
 
-        return config.Secret__c;
+        return cfg.Secret__c;
     }
 }
