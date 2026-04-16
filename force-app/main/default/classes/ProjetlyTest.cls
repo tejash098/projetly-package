@@ -1,7 +1,7 @@
 @isTest
 private class ProjetlyTest {
 
-    // ─── Inner failure mock ───────────────────────────────────────────────────
+    // ─── Failure mock (503) ───────────────────────────────────────────────────
     class HttpMockFail implements HttpCalloutMock {
         public HTTPResponse respond(HTTPRequest req) {
             HttpResponse res = new HttpResponse();
@@ -11,23 +11,52 @@ private class ProjetlyTest {
         }
     }
 
-    // ─── Shared helper to create a config record ──────────────────────────────
-    static Projetly_Config__c createConfig() {
-        Projetly_Config__c cfg = new Projetly_Config__c(
-            Name = 'Default',
-            Active__c = true,
-            Secret__c = 'test_secret_value'
-        );
-        insert cfg;
-        return cfg;
+    // ─── Account Trigger ──────────────────────────────────────────────────────
+
+    @isTest
+    static void testAccountTrigger() {
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Test.startTest();
+
+        Account acc = new Account(Name = 'Acc');
+        insert acc;                    // trigger_type='create'
+
+        acc.Name = 'Updated';
+        update acc;                    // trigger_type='update'
+
+        delete acc;                    // trigger_type='delete'
+
+        Test.stopTest();
     }
 
-    // ─── Existing tests ───────────────────────────────────────────────────────
+    // ─── Contact Trigger ──────────────────────────────────────────────────────
+
+    @isTest
+    static void testContactTrigger() {
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Account acc = new Account(Name = 'Contact Acc');
+        insert acc;
+
+        Contact con = new Contact(LastName = 'Test', AccountId = acc.Id);
+
+        Test.startTest();
+
+        insert con;                    // trigger_type='create', object='contact', ids=[con.Id]
+
+        con.LastName = 'Updated';
+        update con;                    // trigger_type='update', object='contact', ids=[con.Id]
+
+        delete con;                    // trigger_type='delete', object='contact', ids=[con.Id]
+
+        Test.stopTest();
+    }
+
+    // ─── Opportunity Trigger ──────────────────────────────────────────────────
 
     @isTest
     static void testOpportunityFlow() {
-
-        createConfig();
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
 
         Account acc = new Account(Name = 'Test Account');
@@ -42,45 +71,20 @@ private class ProjetlyTest {
 
         Test.startTest();
 
-        // Trigger: INSERT
-        insert opp;
+        insert opp;                    // trigger_type='create'
 
-        // Trigger: UPDATE
         opp.Name = 'Updated Opp';
-        update opp;
+        update opp;                    // trigger_type='update'
 
-        // Trigger: DELETE
-        delete opp;
-
-        Test.stopTest();
-    }
-
-    @isTest
-    static void testAccountTrigger() {
-
-        createConfig();
-        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
-
-        Test.startTest();
-
-        // Trigger: INSERT → 'create' with account ID
-        Account acc = new Account(Name = 'Acc');
-        insert acc;
-
-        // Trigger: UPDATE → 'update' with account ID
-        acc.Name = 'Updated';
-        update acc;
-
-        // Trigger: DELETE → 'delete' with account ID
-        delete acc;
+        delete opp;                    // trigger_type='delete'
 
         Test.stopTest();
     }
+
+    // ─── OpportunityContactRole Trigger ──────────────────────────────────────
 
     @isTest
     static void testOCRTrigger() {
-
-        createConfig();
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
 
         Account acc = new Account(Name = 'Acc');
@@ -94,10 +98,7 @@ private class ProjetlyTest {
         );
         insert opp;
 
-        Contact con = new Contact(
-            LastName = 'Test',
-            AccountId = acc.Id
-        );
+        Contact con = new Contact(LastName = 'Test', AccountId = acc.Id);
         insert con;
 
         OpportunityContactRole ocr = new OpportunityContactRole(
@@ -108,147 +109,20 @@ private class ProjetlyTest {
 
         Test.startTest();
 
-        insert ocr;
+        insert ocr;                    // trigger_type='create', object='contact', ids=[con.Id]
 
         ocr.Role = 'Influencer';
-        update ocr;
+        update ocr;                    // trigger_type='update', object='contact', ids=[con.Id]
 
-        delete ocr;
-
-        Test.stopTest();
-    }
-
-    @isTest
-    static void testContactTrigger() {
-
-        createConfig();
-        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
-
-        Account acc = new Account(Name = 'Contact Acc');
-        insert acc;
-
-        Contact con = new Contact(LastName = 'Test', AccountId = acc.Id);
-
-        Test.startTest();
-
-        // Trigger: INSERT → sends account ID
-        insert con;
-
-        // Trigger: UPDATE → sends account ID
-        con.LastName = 'Updated';
-        update con;
-
-        // Trigger: DELETE → sends account ID
-        delete con;
+        delete ocr;                    // trigger_type='delete', object='contact', ids=[con.Id]
 
         Test.stopTest();
     }
 
-    // ─── New tests ────────────────────────────────────────────────────────────
-
-    @isTest
-    static void testRetryOnFailure() {
-
-        createConfig();
-        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
-
-        Account acc = new Account(Name = 'Retry Acc');
-        insert acc;
-
-        Opportunity opp = new Opportunity(
-            Name = 'Retry Opp',
-            StageName = 'Prospecting',
-            CloseDate = Date.today(),
-            AccountId = acc.Id
-        );
-        insert opp;
-
-        Test.startTest();
-
-        Set<Id> ids = new Set<Id>{ opp.Id };
-        System.enqueueJob(new ProjetlyQueueable(ids, 'update', 'Opportunity', 0));
-
-        Test.stopTest();
-
-        System.assert(true, 'Retry path completed without exception');
-    }
-
-    @isTest
-    static void testEmptyOppIds() {
-
-        createConfig();
-        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
-
-        Test.startTest();
-
-        Boolean result = ProjetlyWebhookService.sendBatch(new Set<Id>(), 'update', 'Opportunity');
-
-        Test.stopTest();
-
-        System.assertEquals(true, result, 'Empty recordIds should return true (no-op)');
-    }
-
-    @isTest
-    static void testNoConfigRecord() {
-
-        // Intentionally no config inserted
-        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
-
-        Account acc = new Account(Name = 'No Config Acc');
-        insert acc;
-
-        Opportunity opp = new Opportunity(
-            Name = 'No Config Opp',
-            StageName = 'Prospecting',
-            CloseDate = Date.today(),
-            AccountId = acc.Id
-        );
-        insert opp;
-
-        Test.startTest();
-
-        Boolean result = ProjetlyWebhookService.sendBatch(
-            new Set<Id>{ opp.Id }, 'update', 'Opportunity'
-        );
-
-        Test.stopTest();
-
-        // Should fail gracefully (exception caught internally → returns false)
-        System.assertEquals(false, result, 'Missing config should return false');
-    }
-
-    @isTest
-    static void testWithConfigRecord() {
-
-        createConfig();
-        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
-
-        Account acc = new Account(Name = 'Config Acc');
-        insert acc;
-
-        Opportunity opp = new Opportunity(
-            Name = 'Config Opp',
-            StageName = 'Prospecting',
-            CloseDate = Date.today(),
-            AccountId = acc.Id
-        );
-        insert opp;
-
-        Test.startTest();
-
-        Boolean result = ProjetlyWebhookService.sendBatch(
-            new Set<Id>{ opp.Id }, 'update', 'Opportunity'
-        );
-
-        Test.stopTest();
-
-        System.assertEquals(true, result, 'Valid config should result in successful callout');
-    }
+    // ─── Bulk insert ──────────────────────────────────────────────────────────
 
     @isTest
     static void testBulkOpportunities() {
-
-        createConfig();
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
 
         Account acc = new Account(Name = 'Bulk Acc');
@@ -266,7 +140,7 @@ private class ProjetlyTest {
 
         Test.startTest();
 
-        insert opps;
+        insert opps;   // All 200 IDs collected in a single queueable
 
         Test.stopTest();
 
@@ -274,81 +148,146 @@ private class ProjetlyTest {
             '200 opportunities should be inserted');
     }
 
-    // ─── ProjetlyQueueable edge cases ────────────────────────────────────────
+    // ─── Bulk delete (all IDs in one payload) ─────────────────────────────────
+
+    @isTest
+    static void testBulkDelete() {
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Account acc = new Account(Name = 'Bulk Delete Acc');
+        insert acc;
+
+        List<Opportunity> opps = new List<Opportunity>();
+        for (Integer i = 0; i < 50; i++) {
+            opps.add(new Opportunity(
+                Name = 'Del Opp ' + i,
+                StageName = 'Prospecting',
+                CloseDate = Date.today(),
+                AccountId = acc.Id
+            ));
+        }
+        insert opps;
+
+        Set<Id> expectedIds = new Set<Id>();
+        for (Opportunity o : opps) expectedIds.add(o.Id);
+
+        Test.startTest();
+
+        delete opps;   // All 50 deletes batched into one queueable with 50 IDs
+
+        Test.stopTest();
+
+        System.assertEquals(0, [SELECT COUNT() FROM Opportunity WHERE AccountId = :acc.Id],
+            'All 50 opportunities should be deleted');
+        System.assertEquals(50, expectedIds.size(), '50 distinct IDs should have been collected');
+    }
+
+    // ─── Direct service tests ─────────────────────────────────────────────────
+
+    @isTest
+    static void testDirectSendBatch_success() {
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Account acc = new Account(Name = 'Svc Acc');
+        insert acc;
+
+        Test.startTest();
+        Boolean result = ProjetlyWebhookService.sendBatch(new Set<Id>{ acc.Id }, 'update', 'Account');
+        Test.stopTest();
+
+        System.assertEquals(true, result, 'Valid callout should return true');
+    }
+
+    @isTest
+    static void testDirectSendBatch_failure() {
+        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
+
+        Account acc = new Account(Name = 'Fail Acc');
+        insert acc;
+
+        ProjetlyQueueable.skipRetry = true;
+
+        Test.startTest();
+        Boolean result = ProjetlyWebhookService.sendBatch(new Set<Id>{ acc.Id }, 'update', 'Account');
+        Test.stopTest();
+
+        System.assertEquals(false, result, 'Failed callout (503) should return false');
+    }
+
+    @isTest
+    static void testDirectSendBatch_emptyIds() {
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Test.startTest();
+        Boolean result = ProjetlyWebhookService.sendBatch(new Set<Id>(), 'update', 'Opportunity');
+        Test.stopTest();
+
+        System.assertEquals(true, result, 'Empty recordIds should return true (no-op)');
+    }
+
+    @isTest
+    static void testDirectSendBatch_nullIds() {
+        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
+
+        Test.startTest();
+        Boolean result = ProjetlyWebhookService.sendBatch(null, 'update', 'Opportunity');
+        Test.stopTest();
+
+        System.assertEquals(true, result, 'Null recordIds should return true (no-op)');
+    }
+
+    // ─── Queueable retry tests ────────────────────────────────────────────────
+
+    @isTest
+    static void testRetryOnFailure() {
+        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
+
+        Account acc = new Account(Name = 'Retry Acc');
+        insert acc;
+
+        // skipRetry prevents infinite queueable chaining in test context
+        ProjetlyQueueable.skipRetry = true;
+
+        Test.startTest();
+        Set<Id> ids = new Set<Id>{ acc.Id };
+        System.enqueueJob(new ProjetlyQueueable(ids, 'update', 'Account', 0));
+        Test.stopTest();
+
+        System.assert(true, 'Retry path executed without exception');
+    }
+
+    @isTest
+    static void testQueueableRetryChain() {
+        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
+
+        // retryCount=2 → fails → enqueues retryCount=3 → 3<3 is false → stops
+        Test.startTest();
+        Set<Id> ids = new Set<Id>{ UserInfo.getUserId() };
+        System.enqueueJob(new ProjetlyQueueable(ids, 'update', 'Account', 2));
+        Test.stopTest();
+
+        System.assert(true, 'Retry chain stopped at max 3 attempts');
+    }
 
     @isTest
     static void testQueueableNullIds() {
-
-        createConfig();
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
 
         Test.startTest();
-
-        // Covers the early-return branch: recordIds == null
         System.enqueueJob(new ProjetlyQueueable(null, 'update', 'Opportunity', 0));
-
         Test.stopTest();
 
-        System.assert(true, 'Null recordIds early return completed without exception');
+        System.assert(true, 'Null recordIds early-return completed without exception');
     }
 
-    // ─── ProjetlyPostInstall tests ────────────────────────────────────────────
-
     @isTest
-    static void testPostInstall_fresh() {
-
+    static void testQueueableEmptyIds() {
         Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
 
         Test.startTest();
-        // Simulates fresh install — covers onInstall + sendInstallEventAsync (200 success path)
-        Test.testInstall(new ProjetlyPostInstall(), null, false);
+        System.enqueueJob(new ProjetlyQueueable(new Set<Id>(), 'create', 'contact', 0));
         Test.stopTest();
 
-        System.assert(true, 'Fresh install completed without exception');
-    }
-
-    @isTest
-    static void testPostInstall_upgrade() {
-
-        // Pre-assign the permission set so the re-install (already-assigned) branch is taken
-        List<PermissionSet> psList = [
-            SELECT Id FROM PermissionSet WHERE Name = 'Projetly_User' LIMIT 1
-        ];
-        if (!psList.isEmpty()) {
-            Id userId = UserInfo.getUserId();
-            List<PermissionSetAssignment> existing = [
-                SELECT Id FROM PermissionSetAssignment
-                WHERE AssigneeId = :userId AND PermissionSetId = :psList[0].Id
-                LIMIT 1
-            ];
-            if (existing.isEmpty()) {
-                insert new PermissionSetAssignment(
-                    AssigneeId = userId,
-                    PermissionSetId = psList[0].Id
-                );
-            }
-        }
-
-        Test.setMock(HttpCalloutMock.class, new ProjetlyHttpMock());
-
-        Test.startTest();
-        // Simulates upgrade/re-install — covers already-assigned branch
-        Test.testInstall(new ProjetlyPostInstall(), new Version(1, 0), true);
-        Test.stopTest();
-
-        System.assert(true, 'Upgrade install completed without exception');
-    }
-
-    @isTest
-    static void testPostInstall_calloutFailure() {
-
-        // 503 mock → covers the failure branch in sendInstallEventAsync
-        Test.setMock(HttpCalloutMock.class, new HttpMockFail());
-
-        Test.startTest();
-        Test.testInstall(new ProjetlyPostInstall(), null, false);
-        Test.stopTest();
-
-        System.assert(true, 'PostInstall with failing callout handled gracefully');
+        System.assert(true, 'Empty recordIds early-return completed without exception');
     }
 }

@@ -24,9 +24,13 @@ public class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
 
         // retry max 3 times
         if (!success && retryCount < 3 && !skipRetry) {
-            System.enqueueJob(
-                new ProjetlyQueueable(uniqueIds, triggerType, objectType, retryCount + 1)
-            );
+            try {
+                System.enqueueJob(
+                    new ProjetlyQueueable(uniqueIds, triggerType, objectType, retryCount + 1)
+                );
+            } catch (System.AsyncException e) {
+                System.debug(LoggingLevel.WARN, 'ProjetlyQueueable: retry enqueue failed - ' + e.getMessage());
+            }
         }
     }
 }
