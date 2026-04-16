@@ -15,11 +15,18 @@ public class ProjetlyWebhookService {
 
             String body = JSON.serialize(payload);
 
+            // --- HEADERS ---
+            String timestamp = generateTimestamp();
+            String requestId = generateRequestId();
+
+
             // --- HTTP REQUEST ---
             HttpRequest req = new HttpRequest();
             req.setEndpoint('callout:Projetly_Webhook/webhook');
             req.setMethod('POST');
             req.setHeader('Content-Type', 'application/json');
+            req.setHeader('x-sf-request-id', requestId);
+            req.setHeader('x-sf-timestamp', timestamp);
             req.setBody(body);
 
             Http http = new Http();
@@ -32,5 +39,33 @@ public class ProjetlyWebhookService {
             System.debug(LoggingLevel.ERROR, 'ProjetlyWebhookService error: ' + e.getMessage() + ' | ' + e.getStackTraceString());
             return false;
         }
+    }
+
+    // --- HELPER METHOD ---
+    private static String generateRequestId() {
+        // Combine timestamp and random integer, then take first 16 chars
+        Long timestamp = DateTime.now().getTime();
+        Integer randomPart = Math.abs(Crypto.getRandomInteger());
+
+        String combined = String.valueOf(timestamp) + String.valueOf(randomPart);
+
+        if (combined.length() >= 16) {
+            return combined.substring(0, 16);
+        } else {
+            // Manual padding (Apex way)
+            Integer remaining = 16 - combined.length();
+            String padding = '';
+
+            for (Integer i = 0; i < remaining; i++) {
+                padding += '0';
+            }
+
+            return combined + padding;
+        }
+    }
+
+    private static String generateTimestamp() {
+        // ISO 8601 UTC format
+        return DateTime.now().formatGMT('yyyy-MM-dd\'T\'HH:mm:ss\'Z\'');
     }
 }
