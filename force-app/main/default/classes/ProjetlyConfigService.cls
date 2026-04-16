@@ -6,7 +6,7 @@ public class ProjetlyConfigService {
         Projetly_Config__mdt config = Projetly_Config__mdt.getInstance('Default');
 
         if (config == null || String.isBlank(config.Secret__c)) {
-            throw new IllegalStateException('Missing Projetly secret configuration');
+            throw new AuraHandledException('Missing Projetly secret configuration');
         }
 
         return config.Secret__c;
