@@ -1,4 +1,4 @@
-# Projetly Webhook Package
+# Projetly 2GP Package
 
 A Salesforce 2GP managed package that automatically delivers real-time webhook events to your external platform whenever Account, Contact, or Opportunity records are created, updated, or deleted — with zero configuration required after installation.
 
