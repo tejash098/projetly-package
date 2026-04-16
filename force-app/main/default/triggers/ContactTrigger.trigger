@@ -1,20 +1,22 @@
 trigger ContactTrigger on Contact (after insert, after update, after delete) {
 
-    Set<Id> accountIds = new Set<Id>();
+    Set<Id> contactIds = new Set<Id>();
+    String triggerType;
 
     if (Trigger.isDelete) {
-        for (Contact con : Trigger.old) {
-            if (con.AccountId != null) accountIds.add(con.AccountId);
-        }
+        for (Contact con : Trigger.old) contactIds.add(con.Id);
+        triggerType = 'delete';
+    } else if (Trigger.isInsert) {
+        for (Contact con : Trigger.new) contactIds.add(con.Id);
+        triggerType = 'create';
     } else {
-        for (Contact con : Trigger.new) {
-            if (con.AccountId != null) accountIds.add(con.AccountId);
-        }
+        for (Contact con : Trigger.new) contactIds.add(con.Id);
+        triggerType = 'update';
     }
 
-    if (!accountIds.isEmpty()) {
+    if (!contactIds.isEmpty()) {
         try {
-            System.enqueueJob(new ProjetlyQueueable(accountIds, 'update', 'Account', 0));
+            System.enqueueJob(new ProjetlyQueueable(contactIds, triggerType, 'contact', 0));
         } catch (System.AsyncException e) {
             System.debug(LoggingLevel.WARN, 'ContactTrigger: enqueue failed - ' + e.getMessage());
         }
