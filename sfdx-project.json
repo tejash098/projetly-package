@@ -6,8 +6,7 @@
       "path": "force-app",
       "default": true,
       "package": "Projetly",
-      "versionDescription": "fix: permission set assignment",
-      "postInstallScript": "ProjetlyPostInstall"
+      "versionDescription": "refactor: simplified webhook service, fixed contact/OCR triggers"
     }
   ],
   "name": "projetly-app",
