@@ -9,6 +9,8 @@ global class ProjetlyHttpMock implements HttpCalloutMock {
         System.assertNotEquals(null, req.getHeader('x-sf-timestamp'));
         System.assert(req.getHeader('x-sf-timestamp').contains('T'));
 
+        System.assertNotEquals(null, req.getHeader('x-sf-signature'));
+
         HttpResponse res = new HttpResponse();
         res.setStatusCode(200);
         res.setBody('{"status":true}');

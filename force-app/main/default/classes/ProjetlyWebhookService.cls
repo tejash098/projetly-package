@@ -18,7 +18,7 @@ public class ProjetlyWebhookService {
             // --- HEADERS ---
             String timestamp = generateTimestamp();
             String requestId = generateRequestId();
-
+            String signature = ProjetlySignatureUtil.generateSignature(body, timestamp, requestId);
 
             // --- HTTP REQUEST ---
             HttpRequest req = new HttpRequest();
@@ -27,6 +27,7 @@ public class ProjetlyWebhookService {
             req.setHeader('Content-Type', 'application/json');
             req.setHeader('x-sf-request-id', requestId);
             req.setHeader('x-sf-timestamp', timestamp);
+            req.setHeader('x-sf-signature', signature);
             req.setBody(body);
 
             Http http = new Http();
