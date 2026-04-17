@@ -4,7 +4,7 @@
 public class ProjetlyConfigService {
 
     public static String getSecret() {
-        Projetly_Webhook_Config__mdt cfg = Projetly_Webhook_Config__mdt.getInstance('Default');
+        Projetly_Webhook_Config__mdt cfg = Projetly_Webhook_Config__mdt.getInstance('Default_Config');
 
         if (cfg == null || String.isBlank(cfg.Secret__c)) {
             throw new AuraHandledException('Missing Projetly secret configuration');
