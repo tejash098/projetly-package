@@ -6,7 +6,7 @@
     <label>Default Config</label>
     <protected>true</protected>
     <values>
-        <field>Secret__c</field>
+        <field>Projetly__Secret__c</field>
         <value xsi:type="xsd:string">7EFED73398E1BF5939BE85C85FB9BA7E5CE8884353B124E7160FE5504DAEA601</value>
     </values>
 </CustomMetadata>
