@@ -23,7 +23,7 @@ public class ProjetlyWebhookService {
 
             // --- HTTP REQUEST ---
             HttpRequest req = new HttpRequest();
-            req.setEndpoint('callout:Projetly_Webhook/api/salesforce/webhook');
+            req.setEndpoint('callout:Projetly__Projetly_Webhook/api/salesforce/webhook');
             req.setMethod('POST');
             req.setHeader('Content-Type', 'application/json');
             req.setHeader('x-sf-request-id', requestId);
