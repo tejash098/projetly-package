@@ -290,4 +290,62 @@ private class ProjetlyTest {
 
         System.assert(true, 'Empty recordIds early-return completed without exception');
     }
+
+    // ─── Post Install Handler ─────────────────────────────────────────────────
+
+    @isTest
+    static void testPostInstall_newInstall() {
+        Test.startTest();
+        Test.testInstall(new ProjetlyPostInstallHandler(), null, false);
+        Test.stopTest();
+
+        List<PermissionSet> psList = [
+            SELECT Id FROM PermissionSet WHERE Name = 'Projetly_User' LIMIT 1
+        ];
+        if (!psList.isEmpty()) {
+            Integer count = [
+                SELECT COUNT() FROM PermissionSetAssignment
+                WHERE AssigneeId = :UserInfo.getUserId()
+                AND PermissionSetId = :psList[0].Id
+            ];
+            System.assert(count >= 1, 'Permission Set should be assigned after new install');
+        }
+    }
+
+    @isTest
+    static void testPostInstall_alreadyAssigned() {
+        // Pre-assign the PS to exercise the duplicate-skip branch
+        List<PermissionSet> psList = [
+            SELECT Id FROM PermissionSet WHERE Name = 'Projetly_User' LIMIT 1
+        ];
+        if (!psList.isEmpty()) {
+            List<PermissionSetAssignment> existing = [
+                SELECT Id FROM PermissionSetAssignment
+                WHERE AssigneeId = :UserInfo.getUserId()
+                AND PermissionSetId = :psList[0].Id
+                LIMIT 1
+            ];
+            if (existing.isEmpty()) {
+                insert new PermissionSetAssignment(
+                    AssigneeId = UserInfo.getUserId(),
+                    PermissionSetId = psList[0].Id
+                );
+            }
+        }
+
+        Test.startTest();
+        Test.testInstall(new ProjetlyPostInstallHandler(), null, false);
+        Test.stopTest();
+
+        System.assert(true, 'Re-install with existing PS assignment should not throw');
+    }
+
+    @isTest
+    static void testPostInstall_upgrade() {
+        Test.startTest();
+        Test.testInstall(new ProjetlyPostInstallHandler(), new Version(0, 1), true);
+        Test.stopTest();
+
+        System.assert(true, 'Upgrade path should complete without exception');
+    }
 }
