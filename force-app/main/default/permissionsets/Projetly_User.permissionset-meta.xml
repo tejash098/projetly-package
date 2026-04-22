@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
     <label>Projetly User</label>
-    <description>Base permission set for Projetly package users.</description>
+    <description>Base permission set for Projetly package users. Grants access to the Projetly Webhook Named Credential and External Credential principal.</description>
+    <externalCredentialPrincipalAccesses>
+        <externalCredentialPrincipal>Projetly_Webhook_Credential-Anonymous</externalCredentialPrincipal>
+        <enabled>true</enabled>
+    </externalCredentialPrincipalAccesses>
 </PermissionSet>

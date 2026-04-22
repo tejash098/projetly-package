@@ -6,7 +6,8 @@
       "path": "force-app",
       "default": true,
       "package": "ProjetlyCore",
-      "versionDescription": ""
+      "versionDescription": "",
+      "postInstallScript": "ProjetlyPostInstallHandler"
     }
   ],
   "name": "projetly-app",
@@ -28,6 +29,7 @@
     "ProjetlyCore@0.1.0-10": "04tgK000000C9txQAC",
     "ProjetlyCore@0.1.0-11": "04tgK000000CA0PQAW",
     "ProjetlyCore@0.1.0-12": "04tgK000000CBqvQAG",
-    "ProjetlyCore@0.1.0-13": "04tgK000000CC5RQAW"
+    "ProjetlyCore@0.1.0-13": "04tgK000000CC5RQAW",
+    "ProjetlyCore@0.1.0-14": "04tgK000000CLqHQAW"
   }
 }
