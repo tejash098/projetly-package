@@ -182,6 +182,43 @@ private class ProjetlyTest {
         System.assertEquals(50, expectedIds.size(), '50 distinct IDs should have been collected');
     }
 
+    // ─── Signature unit tests ─────────────────────────────────────────────────
+
+    @isTest
+    static void testGenerateSignature() {
+        Test.startTest();
+        String sig = ProjetlyWebhookService.generateSignature('1234567890', '{"test":true}', 'test-secret');
+        Test.stopTest();
+
+        System.assertNotEquals(null, sig, 'Signature must not be null');
+        System.assert(sig.startsWith('sha256='), 'Signature must start with sha256=');
+        // sha256= (7) + HmacSHA256 hex (64) = 71
+        System.assertEquals(71, sig.length(), 'Signature must be exactly 71 characters');
+    }
+
+    @isTest
+    static void testGenerateSignature_deterministicOutput() {
+        String sig1 = ProjetlyWebhookService.generateSignature('ts', 'body', 'key');
+        String sig2 = ProjetlyWebhookService.generateSignature('ts', 'body', 'key');
+        System.assertEquals(sig1, sig2, 'Same inputs must always produce the same signature');
+    }
+
+    @isTest
+    static void testGenerateSignature_differentInputsProduceDifferentOutput() {
+        String sig1 = ProjetlyWebhookService.generateSignature('ts1', 'body', 'key');
+        String sig2 = ProjetlyWebhookService.generateSignature('ts2', 'body', 'key');
+        System.assertNotEquals(sig1, sig2, 'Different timestamps must produce different signatures');
+    }
+
+    @isTest
+    static void testGetWebhookSecret() {
+        Test.startTest();
+        String secret = ProjetlyWebhookService.getWebhookSecret();
+        Test.stopTest();
+
+        System.assertNotEquals(null, secret, 'getWebhookSecret must return a non-null value');
+    }
+
     // ─── Direct service tests ─────────────────────────────────────────────────
 
     @isTest
