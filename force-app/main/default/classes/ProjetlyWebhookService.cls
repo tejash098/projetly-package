@@ -1,12 +1,14 @@
 public class ProjetlyWebhookService {
 
     public static Boolean sendBatch(Set<Id> recordIds, String triggerType, String objectType) {
+        System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: start | triggerType=' + triggerType + ' objectType=' + objectType + ' recordCount=' + (recordIds != null ? recordIds.size() : 0));
 
         try {
             if (recordIds == null || recordIds.isEmpty()) return true;
 
             // --- BUILD PAYLOAD ---
             String timestamp = generateTimestamp();
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: timestamp=' + timestamp);
 
             Map<String, Object> payload = new Map<String, Object>();
             payload.put('org_id', UserInfo.getOrganizationId());
@@ -17,6 +19,13 @@ public class ProjetlyWebhookService {
             payload.put('timestamp', timestamp);
 
             String body = JSON.serialize(payload);
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: payload body=' + body);
+
+            // --- SIGNATURE ---
+            String secret = getWebhookSecret();
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: secret fetched successfully');
+            String signature = generateSignature(timestamp, body, secret);
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: signature=' + signature);
 
             // --- HEADERS ---
             String requestId = generateRequestId();
@@ -28,12 +37,17 @@ public class ProjetlyWebhookService {
             req.setHeader('Content-Type', 'application/json');
             req.setHeader('x-sf-request-id', requestId);
             req.setHeader('x-sf-timestamp', timestamp);
+            req.setHeader('x-sf-signature', signature);
             req.setBody(body);
+
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: sending HTTP request to webhook endpoint');
 
             Http http = new Http();
             HttpResponse res = http.send(req);
 
             Integer statusCode = res.getStatusCode();
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: response statusCode=' + statusCode + ' body=' + res.getBody());
+
             return (statusCode >= 200 && statusCode < 300);
 
         } catch (Exception e) {
@@ -42,7 +56,35 @@ public class ProjetlyWebhookService {
         }
     }
 
-    // --- HELPER METHOD ---
+    @TestVisible
+    private static String getWebhookSecret() {
+        System.debug(LoggingLevel.DEBUG, 'DEBUG: Fetching webhook secret');
+        List<Projetly_Config__mdt> configs = [
+            SELECT Webhook_Secret__c
+            FROM Projetly__Projetly_Config__mdt
+            LIMIT 1
+        ];
+        if (!configs.isEmpty() && configs[0].Webhook_Secret__c != null) {
+            return configs[0].Webhook_Secret__c;
+        }
+        return '';
+    }
+
+    @TestVisible
+    private static String generateSignature(String timestamp, String body, String secret) {
+        String rawPayload = timestamp + '.' + body;
+        System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.generateSignature: rawPayload=' + rawPayload);
+
+        Blob keyBlob  = Blob.valueOf(secret);
+        Blob dataBlob = Blob.valueOf(rawPayload);
+        Blob hmac     = Crypto.generateMac('HmacSHA256', dataBlob, keyBlob);
+        String signature = 'sha256=' + EncodingUtil.convertToHex(hmac);
+
+        System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.generateSignature: signature=' + signature);
+        return signature;
+    }
+
+    // --- HELPER METHODS ---
     private static String generateRequestId() {
         // Combine timestamp and random integer, then take first 16 chars
         Long timestamp = DateTime.now().getTime();

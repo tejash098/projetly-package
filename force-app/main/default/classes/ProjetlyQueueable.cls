@@ -1,4 +1,4 @@
-public class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
+global class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
 
     @TestVisible static Boolean skipRetry = false;
 
@@ -7,14 +7,14 @@ public class ProjetlyQueueable implements Queueable, Database.AllowsCallouts {
     private String objectType;
     private Integer retryCount;
 
-    public ProjetlyQueueable(Set<Id> recordIds, String triggerType, String objectType, Integer retryCount) {
+    global ProjetlyQueueable(Set<Id> recordIds, String triggerType, String objectType, Integer retryCount) {
         this.recordIds = recordIds;
         this.triggerType = triggerType;
         this.objectType = objectType;
         this.retryCount = retryCount;
     }
 
-    public void execute(QueueableContext context) {
+    global void execute(QueueableContext context) {
 
         if (recordIds == null || recordIds.isEmpty()) return;
 
