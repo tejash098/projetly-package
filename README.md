@@ -3,7 +3,7 @@
 A Salesforce 2GP managed package that automatically delivers real-time webhook events to your external platform whenever Account, Contact, or Opportunity records are created, updated, or deleted — with zero configuration required after installation.
 
 ![Build](https://img.shields.io/badge/build-passing-brightgreen)
-![Version](https://img.shields.io/badge/version-0.4.0-orange)
+![Version](https://img.shields.io/badge/version-0.1.0-orange)
 ![API Version](https://img.shields.io/badge/Salesforce%20API-v66.0-blue)
 ![Coverage](https://img.shields.io/badge/test%20coverage-85%25%2B-brightgreen)
 ![AppExchange](https://img.shields.io/badge/AppExchange-ready-blue)
@@ -15,6 +15,7 @@ A Salesforce 2GP managed package that automatically delivers real-time webhook e
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Payload Format](#payload-format)
+- [Security Headers](#security-headers)
 - [Supported Objects and Events](#supported-objects-and-events)
 - [Components](#components)
 - [Installation](#installation)
@@ -55,9 +56,10 @@ Record Change (DML)
         v
   ProjetlyWebhookService.sendBatch()
         |
-        | POST via Named Credential (HTTPS)
+        | Builds JSON payload + generates HMAC-SHA256 signature
         v
-  External Webhook Endpoint
+  HTTP POST via Named Credential (Projetly_Webhook)
+  Headers: x-sf-request-id, x-sf-timestamp, x-sf-signature
         |
         | On failure (non-2xx or exception)
         v
@@ -78,7 +80,8 @@ Every webhook POST sends the following JSON body:
   "user_id": "005000000000001AAA",
   "trigger_type": "create",
   "record_ids": ["001000000000001AAA", "001000000000002AAA"],
-  "object": "account"
+  "object": "account",
+  "timestamp": "1713870000000"
 }
 ```
 
@@ -89,8 +92,39 @@ Every webhook POST sends the following JSON body:
 | `trigger_type` | String | `create`, `update`, or `delete` |
 | `record_ids` | Array | All record IDs affected in the transaction |
 | `object` | String | `account`, `contact`, or `opportunity` |
+| `timestamp` | String | Epoch milliseconds when the event was generated |
 
 The endpoint is configured in the `Projetly_Webhook` Named Credential. The base URL is updated per deployment environment.
+
+---
+
+## Security Headers
+
+Every outbound webhook request includes three custom headers for authenticity verification:
+
+| Header | Format | Description |
+|---|---|---|
+| `x-sf-request-id` | 16-character alphanumeric string | Unique ID for this request (timestamp prefix + random suffix) |
+| `x-sf-timestamp` | Epoch milliseconds (string) | Time the request was generated; matches `timestamp` in the payload body |
+| `x-sf-signature` | `sha256=<64-char-hex>` | HMAC-SHA256 signature for payload verification |
+
+### Verifying the Signature
+
+The signature is computed as:
+
+```
+rawPayload  = timestamp + "." + requestBody
+signature   = "sha256=" + HMAC-SHA256(rawPayload, webhookSecret)
+```
+
+Where `webhookSecret` is the value stored in the `Projetly_Config__mdt` Custom Metadata record. On the receiving end:
+
+1. Read `x-sf-timestamp` from the request headers.
+2. Concatenate `timestamp + "." + rawBody` using the exact body bytes received.
+3. Compute HMAC-SHA256 using your shared secret.
+4. Compare the result (prefixed with `sha256=`) to the `x-sf-signature` header value.
+
+If the values match, the request is authentic and has not been tampered with.
 
 ---
 
@@ -122,9 +156,10 @@ The endpoint is configured in the `Projetly_Webhook` Named Credential. The base 
 
 | Class | Purpose |
 |---|---|
-| `ProjetlyWebhookService` | Builds the JSON payload and executes the HTTP POST |
+| `ProjetlyWebhookService` | Builds the JSON payload, generates HMAC-SHA256 signature, and executes the HTTP POST |
 | `ProjetlyQueueable` | Async wrapper with retry logic (up to 3 attempts) |
-| `ProjetlyHttpMock` | `HttpCalloutMock` implementation used in tests |
+| `ProjetlyPostInstallHandler` | Post-install script: verifies Named Credential and assigns `Projetly_User` permission set to the installer |
+| `ProjetlyHttpMock` | `HttpCalloutMock` implementation used in tests; validates all three security headers |
 | `ProjetlyTest` | Comprehensive test class (85%+ coverage) |
 
 ### Metadata
@@ -132,7 +167,9 @@ The endpoint is configured in the `Projetly_Webhook` Named Credential. The base 
 | Component | Type | Purpose |
 |---|---|---|
 | `Projetly_Webhook` | Named Credential | Stores the webhook base URL, enables callout authorization |
-| `Projetly_User` | Permission Set | Base permission set for Projetly package users |
+| `Projetly_Config__mdt` | Custom Metadata Type | Stores the HMAC-SHA256 webhook secret (protected field; subscriber orgs cannot read) |
+| `Projetly_Config.Default` | Custom Metadata Record | Default config record; set `Webhook_Secret__c` before go-live |
+| `Projetly_User` | Permission Set | Base permission set for Projetly package users; auto-assigned on install |
 
 ---
 
@@ -148,19 +185,33 @@ The endpoint is configured in the `Projetly_Webhook` Named Credential. The base 
 
 ```bash
 sf package install \
-  --package 04tgK000000Bxxxxx \
+  --package 04tgK000000CPaXQAW \
   --target-org <your-org-alias> \
   --wait 10
 ```
 
-Replace `04tgK000000Bxxxxx` with the appropriate version ID from the table below if installing a specific version.
+Use the table below to install a specific build:
 
-| Version | Package Version ID |
+| Build | Package Version ID |
 |---|---|
-| 0.1.0 | `04tgK000000Bxxxxx` |
-| 0.2.0 | `04tgK000000Bxxxxx` |
-| 0.3.0 | `04tgK000000Bxxxxx` |
-| 0.4.0 (latest) | `04tgK000000Bxxxxx` |
+| 0.1.0-1 | `04tgK000000C8g9QAC` |
+| 0.1.0-2 | `04tgK000000C8zVQAS` |
+| 0.1.0-3 | `04tgK000000C95xQAC` |
+| 0.1.0-4 | `04tgK000000C9HFQA0` |
+| 0.1.0-5 | `04tgK000000C9NhQAK` |
+| 0.1.0-6 | `04tgK000000C9YzQAK` |
+| 0.1.0-7 | `04tgK000000C9ltQAC` |
+| 0.1.0-8 | `04tgK000000C9nVQAS` |
+| 0.1.0-9 | `04tgK000000C9p7QAC` |
+| 0.1.0-10 | `04tgK000000C9txQAC` |
+| 0.1.0-11 | `04tgK000000CA0PQAW` |
+| 0.1.0-12 | `04tgK000000CBqvQAG` |
+| 0.1.0-13 | `04tgK000000CC5RQAW` |
+| 0.1.0-14 | `04tgK000000CLqHQAW` |
+| 0.1.0-15 | `04tgK000000CMCrQAO` |
+| 0.1.0-16 | `04tgK000000CMHhQAO` |
+| 0.1.0-17 | `04tgK000000CMMXQA4` |
+| 0.1.0-18 (latest) | `04tgK000000CPaXQAW` |
 
 ### Install for Development (Source Deploy)
 
@@ -194,7 +245,7 @@ sf project deploy start --target-org projetly-scratch
 
 ## Usage
 
-After installation, the package works automatically. No admin configuration is required.
+After installation, the package works automatically. No admin configuration is required beyond setting the webhook secret (see [Configuration](#configuration)).
 
 **Verify triggers are active:**
 
@@ -232,8 +283,17 @@ System.enqueueJob(new Projetly.ProjetlyQueueable(ids, 'update', 'account', 0));
     "0015g000000LMNOPAB",
     "0015g000000LMNOPC"
   ],
-  "object": "account"
+  "object": "account",
+  "timestamp": "1713870000000"
 }
+```
+
+**Sample request headers:**
+
+```
+x-sf-request-id: a1b2c3d4e5f67890
+x-sf-timestamp:  1713870000000
+x-sf-signature:  sha256=3d9b4c1a...
 ```
 
 ---
@@ -260,6 +320,27 @@ Alternatively, update the Named Credential metadata before deployment:
     <protocol>NoAuthentication</protocol>
 </NamedCredential>
 ```
+
+### Setting the Webhook Secret
+
+The HMAC-SHA256 signing key is stored in the `Projetly_Config__mdt` Custom Metadata record (`Projetly_Config.Default`). The field `Webhook_Secret__c` ships with a placeholder value and **must be updated before go-live**.
+
+Update the metadata record before deployment:
+
+```xml
+<!-- force-app/main/default/customMetadata/Projetly_Config.Default.md-meta.xml -->
+<CustomMetadata>
+    <label>Default</label>
+    <values>
+        <field>Webhook_Secret__c</field>
+        <value xsi:type="xsd:string">your-strong-secret-here</value>
+    </values>
+</CustomMetadata>
+```
+
+Or update it via Setup > Custom Metadata Types > Projetly Config > Manage Records > Default.
+
+> **Note:** `Webhook_Secret__c` is a protected field — subscriber orgs cannot read or export it, which keeps the signing secret secure in managed package deployments.
 
 ### Retry Behavior
 
@@ -303,7 +384,7 @@ sf apex run test \
 | Scenario | Test Method |
 |---|---|
 | Account insert / update / delete | `testAccountTrigger` |
-| Contact insert / update / delete (Contact IDs) | `testContactTrigger` |
+| Contact insert / update / delete | `testContactTrigger` |
 | Opportunity insert / update / delete | `testOpportunityFlow` |
 | OCR insert / update / delete (Contact IDs) | `testOCRTrigger` |
 | 200-record bulk insert | `testBulkOpportunities` |
@@ -316,6 +397,13 @@ sf apex run test \
 | Retry chain stops at attempt 3 | `testQueueableRetryChain` |
 | Null IDs in queueable | `testQueueableNullIds` |
 | Empty IDs in queueable | `testQueueableEmptyIds` |
+| HMAC signature deterministic output | `testSignatureGeneration` |
+| Different inputs produce different signatures | `testSignatureGeneration` |
+| Post-install: new install | `testPostInstall_newInstall` |
+| Post-install: upgrade path | `testPostInstall_upgrade` |
+| Post-install: duplicate PS prevention | `testPostInstall_duplicatePS` |
+
+`ProjetlyHttpMock` validates all three security headers (`x-sf-request-id`, `x-sf-timestamp`, `x-sf-signature`) on every test callout.
 
 ---
 
@@ -336,7 +424,7 @@ sf apex run test \
 
 | Requirement | Status |
 |---|---|
-| No hardcoded sensitive credentials | Named Credential handles endpoint; no secrets in code |
+| No hardcoded sensitive credentials | Named Credential handles endpoint; HMAC secret stored in protected Custom Metadata field |
 | HTTPS-only callouts | Named Credential endpoint enforces HTTPS |
 | No prohibited Apex patterns | No dynamic SOQL, no unrestricted callouts |
 | CRUD/FLS | Package reads no custom object data; standard object triggers are read-only |
@@ -345,6 +433,7 @@ sf apex run test \
 | Minimum 75% code coverage | Current coverage exceeds 85% |
 | No debug-only production code | All `System.debug` calls use appropriate logging levels (WARN / ERROR) |
 | Bulk-safe triggers | Verified against 200-record insert and 50-record delete in tests |
+| Payload signing | All outbound requests signed with HMAC-SHA256; secret stored in protected field |
 
 ---
 
@@ -352,7 +441,6 @@ sf apex run test \
 
 - [ ] Custom Metadata Type for per-object webhook URL overrides
 - [ ] Event filtering (e.g., only fire on specific field changes)
-- [ ] Optional HMAC-SHA256 request signing header for consumer-side verification
 - [ ] Dead-letter logging via custom object for failed webhook attempts after 3 retries
 - [ ] Flow-triggered webhook support (without Apex triggers)
 - [ ] Support for additional standard objects (Lead, Case, Task)
@@ -389,3 +477,4 @@ sf apex run test \
 - All callouts must go through Named Credentials
 - Every new code path must have a corresponding `@isTest` method
 - Follow the handler class pattern — triggers must stay minimal
+- All outbound HTTP requests must include the three security headers
