@@ -85,14 +85,14 @@ Every webhook POST sends the following JSON body:
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `org_id` | String | Salesforce Organization ID |
-| `user_id` | String | ID of the user who performed the DML operation |
-| `trigger_type` | String | `create`, `update`, or `delete` |
-| `record_ids` | Array | All record IDs affected in the transaction |
-| `object` | String | `account`, `contact`, or `opportunity` |
-| `timestamp` | String | Epoch milliseconds when the event was generated |
+| Field          | Type   | Description                                     |
+| -------------- | ------ | ----------------------------------------------- |
+| `org_id`       | String | Salesforce Organization ID                      |
+| `user_id`      | String | ID of the user who performed the DML operation  |
+| `trigger_type` | String | `create`, `update`, or `delete`                 |
+| `record_ids`   | Array  | All record IDs affected in the transaction      |
+| `object`       | String | `account`, `contact`, or `opportunity`          |
+| `timestamp`    | String | Epoch milliseconds when the event was generated |
 
 The endpoint is configured in the `Projetly_Webhook` Named Credential. The base URL is updated per deployment environment.
 
@@ -102,11 +102,11 @@ The endpoint is configured in the `Projetly_Webhook` Named Credential. The base 
 
 Every outbound webhook request includes three custom headers for authenticity verification:
 
-| Header | Format | Description |
-|---|---|---|
-| `x-sf-request-id` | 16-character alphanumeric string | Unique ID for this request (timestamp prefix + random suffix) |
-| `x-sf-timestamp` | Epoch milliseconds (string) | Time the request was generated; matches `timestamp` in the payload body |
-| `x-sf-signature` | `sha256=<64-char-hex>` | HMAC-SHA256 signature for payload verification |
+| Header            | Format                           | Description                                                             |
+| ----------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| `x-sf-request-id` | 16-character alphanumeric string | Unique ID for this request (timestamp prefix + random suffix)           |
+| `x-sf-timestamp`  | Epoch milliseconds (string)      | Time the request was generated; matches `timestamp` in the payload body |
+| `x-sf-signature`  | `sha256=<64-char-hex>`           | HMAC-SHA256 signature for payload verification                          |
 
 ### Verifying the Signature
 
@@ -130,12 +130,12 @@ If the values match, the request is authentic and has not been tampered with.
 
 ## Supported Objects and Events
 
-| Object | after insert | after update | after delete | object value in payload |
-|---|---|---|---|---|
-| Account | create | update | delete | `account` |
-| Contact | create | update | delete | `contact` |
-| Opportunity | create | update | delete | `opportunity` |
-| OpportunityContactRole | create | update | delete | `contact` (fires Contact IDs) |
+| Object                 | after insert | after update | after delete | object value in payload       |
+| ---------------------- | ------------ | ------------ | ------------ | ----------------------------- |
+| Account                | create       | update       | delete       | `account`                     |
+| Contact                | create       | update       | delete       | `contact`                     |
+| Opportunity            | create       | update       | delete       | `opportunity`                 |
+| OpportunityContactRole | create       | update       | delete       | `contact` (fires Contact IDs) |
 
 `OpportunityContactRole` events are treated as Contact relationship changes: the Contact IDs from the role records are sent with `object = contact`, keeping the consumer side simple.
 
@@ -145,31 +145,31 @@ If the values match, the request is authentic and has not been tampered with.
 
 ### Apex Triggers
 
-| File | Object | Events |
-|---|---|---|
-| `AccountTrigger.trigger` | Account | after insert, after update, after delete |
-| `ContactTrigger.trigger` | Contact | after insert, after update, after delete |
-| `OpportunityTrigger.trigger` | Opportunity | after insert, after update, after delete |
+| File                                    | Object                 | Events                                   |
+| --------------------------------------- | ---------------------- | ---------------------------------------- |
+| `AccountTrigger.trigger`                | Account                | after insert, after update, after delete |
+| `ContactTrigger.trigger`                | Contact                | after insert, after update, after delete |
+| `OpportunityTrigger.trigger`            | Opportunity            | after insert, after update, after delete |
 | `OpportunityContactRoleTrigger.trigger` | OpportunityContactRole | after insert, after update, after delete |
 
 ### Apex Classes
 
-| Class | Purpose |
-|---|---|
-| `ProjetlyWebhookService` | Builds the JSON payload, generates HMAC-SHA256 signature, and executes the HTTP POST |
-| `ProjetlyQueueable` | Async wrapper with retry logic (up to 3 attempts) |
+| Class                        | Purpose                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ProjetlyWebhookService`     | Builds the JSON payload, generates HMAC-SHA256 signature, and executes the HTTP POST                       |
+| `ProjetlyQueueable`          | Async wrapper with retry logic (up to 3 attempts)                                                          |
 | `ProjetlyPostInstallHandler` | Post-install script: verifies Named Credential and assigns `Projetly_User` permission set to the installer |
-| `ProjetlyHttpMock` | `HttpCalloutMock` implementation used in tests; validates all three security headers |
-| `ProjetlyTest` | Comprehensive test class (85%+ coverage) |
+| `ProjetlyHttpMock`           | `HttpCalloutMock` implementation used in tests; validates all three security headers                       |
+| `ProjetlyTest`               | Comprehensive test class (85%+ coverage)                                                                   |
 
 ### Metadata
 
-| Component | Type | Purpose |
-|---|---|---|
-| `Projetly_Webhook` | Named Credential | Stores the webhook base URL, enables callout authorization |
-| `Projetly_Config__mdt` | Custom Metadata Type | Stores the HMAC-SHA256 webhook secret (protected field; subscriber orgs cannot read) |
-| `Projetly_Config.Default` | Custom Metadata Record | Default config record; set `Webhook_Secret__c` before go-live |
-| `Projetly_User` | Permission Set | Base permission set for Projetly package users; auto-assigned on install |
+| Component                 | Type                   | Purpose                                                                              |
+| ------------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
+| `Projetly_Webhook`        | Named Credential       | Stores the webhook base URL, enables callout authorization                           |
+| `Projetly_Config__mdt`    | Custom Metadata Type   | Stores the HMAC-SHA256 webhook secret (protected field; subscriber orgs cannot read) |
+| `Projetly_Config.Default` | Custom Metadata Record | Default config record; set `Webhook_Secret__c` before go-live                        |
+| `Projetly_User`           | Permission Set         | Base permission set for Projetly package users; auto-assigned on install             |
 
 ---
 
@@ -192,25 +192,25 @@ sf package install \
 
 Use the table below to install a specific build:
 
-| Build | Package Version ID |
-|---|---|
-| 0.1.0-1 | `04tgK000000C8g9QAC` |
-| 0.1.0-2 | `04tgK000000C8zVQAS` |
-| 0.1.0-3 | `04tgK000000C95xQAC` |
-| 0.1.0-4 | `04tgK000000C9HFQA0` |
-| 0.1.0-5 | `04tgK000000C9NhQAK` |
-| 0.1.0-6 | `04tgK000000C9YzQAK` |
-| 0.1.0-7 | `04tgK000000C9ltQAC` |
-| 0.1.0-8 | `04tgK000000C9nVQAS` |
-| 0.1.0-9 | `04tgK000000C9p7QAC` |
-| 0.1.0-10 | `04tgK000000C9txQAC` |
-| 0.1.0-11 | `04tgK000000CA0PQAW` |
-| 0.1.0-12 | `04tgK000000CBqvQAG` |
-| 0.1.0-13 | `04tgK000000CC5RQAW` |
-| 0.1.0-14 | `04tgK000000CLqHQAW` |
-| 0.1.0-15 | `04tgK000000CMCrQAO` |
-| 0.1.0-16 | `04tgK000000CMHhQAO` |
-| 0.1.0-17 | `04tgK000000CMMXQA4` |
+| Build             | Package Version ID   |
+| ----------------- | -------------------- |
+| 0.1.0-1           | `04tgK000000C8g9QAC` |
+| 0.1.0-2           | `04tgK000000C8zVQAS` |
+| 0.1.0-3           | `04tgK000000C95xQAC` |
+| 0.1.0-4           | `04tgK000000C9HFQA0` |
+| 0.1.0-5           | `04tgK000000C9NhQAK` |
+| 0.1.0-6           | `04tgK000000C9YzQAK` |
+| 0.1.0-7           | `04tgK000000C9ltQAC` |
+| 0.1.0-8           | `04tgK000000C9nVQAS` |
+| 0.1.0-9           | `04tgK000000C9p7QAC` |
+| 0.1.0-10          | `04tgK000000C9txQAC` |
+| 0.1.0-11          | `04tgK000000CA0PQAW` |
+| 0.1.0-12          | `04tgK000000CBqvQAG` |
+| 0.1.0-13          | `04tgK000000CC5RQAW` |
+| 0.1.0-14          | `04tgK000000CLqHQAW` |
+| 0.1.0-15          | `04tgK000000CMCrQAO` |
+| 0.1.0-16          | `04tgK000000CMHhQAO` |
+| 0.1.0-17          | `04tgK000000CMMXQA4` |
 | 0.1.0-18 (latest) | `04tgK000000CPaXQAW` |
 
 ### Install for Development (Source Deploy)
@@ -346,12 +346,12 @@ Or update it via Setup > Custom Metadata Types > Projetly Config > Manage Record
 
 Retries are handled inside `ProjetlyQueueable`. The defaults are:
 
-| Setting | Value |
-|---|---|
-| Max retry attempts | 3 |
-| Retry trigger | HTTP status outside 200-299, or any exception |
-| Retry mechanism | Re-enqueue with `retryCount + 1` |
-| Stop condition | `retryCount >= 3` |
+| Setting            | Value                                         |
+| ------------------ | --------------------------------------------- |
+| Max retry attempts | 3                                             |
+| Retry trigger      | HTTP status outside 200-299, or any exception |
+| Retry mechanism    | Re-enqueue with `retryCount + 1`              |
+| Stop condition     | `retryCount >= 3`                             |
 
 No code changes are needed to enable retries — they are always on.
 
@@ -381,27 +381,27 @@ sf apex run test \
 
 ### Test Coverage Summary
 
-| Scenario | Test Method |
-|---|---|
-| Account insert / update / delete | `testAccountTrigger` |
-| Contact insert / update / delete | `testContactTrigger` |
-| Opportunity insert / update / delete | `testOpportunityFlow` |
-| OCR insert / update / delete (Contact IDs) | `testOCRTrigger` |
-| 200-record bulk insert | `testBulkOpportunities` |
-| 50-record bulk delete in one payload | `testBulkDelete` |
-| Successful callout | `testDirectSendBatch_success` |
-| Failed callout (503 response) | `testDirectSendBatch_failure` |
-| Empty record ID set (no-op) | `testDirectSendBatch_emptyIds` |
-| Null record IDs (no-op) | `testDirectSendBatch_nullIds` |
-| Retry on failure | `testRetryOnFailure` |
-| Retry chain stops at attempt 3 | `testQueueableRetryChain` |
-| Null IDs in queueable | `testQueueableNullIds` |
-| Empty IDs in queueable | `testQueueableEmptyIds` |
-| HMAC signature deterministic output | `testSignatureGeneration` |
-| Different inputs produce different signatures | `testSignatureGeneration` |
-| Post-install: new install | `testPostInstall_newInstall` |
-| Post-install: upgrade path | `testPostInstall_upgrade` |
-| Post-install: duplicate PS prevention | `testPostInstall_duplicatePS` |
+| Scenario                                      | Test Method                    |
+| --------------------------------------------- | ------------------------------ |
+| Account insert / update / delete              | `testAccountTrigger`           |
+| Contact insert / update / delete              | `testContactTrigger`           |
+| Opportunity insert / update / delete          | `testOpportunityFlow`          |
+| OCR insert / update / delete (Contact IDs)    | `testOCRTrigger`               |
+| 200-record bulk insert                        | `testBulkOpportunities`        |
+| 50-record bulk delete in one payload          | `testBulkDelete`               |
+| Successful callout                            | `testDirectSendBatch_success`  |
+| Failed callout (503 response)                 | `testDirectSendBatch_failure`  |
+| Empty record ID set (no-op)                   | `testDirectSendBatch_emptyIds` |
+| Null record IDs (no-op)                       | `testDirectSendBatch_nullIds`  |
+| Retry on failure                              | `testRetryOnFailure`           |
+| Retry chain stops at attempt 3                | `testQueueableRetryChain`      |
+| Null IDs in queueable                         | `testQueueableNullIds`         |
+| Empty IDs in queueable                        | `testQueueableEmptyIds`        |
+| HMAC signature deterministic output           | `testSignatureGeneration`      |
+| Different inputs produce different signatures | `testSignatureGeneration`      |
+| Post-install: new install                     | `testPostInstall_newInstall`   |
+| Post-install: upgrade path                    | `testPostInstall_upgrade`      |
+| Post-install: duplicate PS prevention         | `testPostInstall_duplicatePS`  |
 
 `ProjetlyHttpMock` validates all three security headers (`x-sf-request-id`, `x-sf-timestamp`, `x-sf-signature`) on every test callout.
 
@@ -409,31 +409,31 @@ sf apex run test \
 
 ## Governor Limits and Bulkification
 
-| Concern | How it is handled |
-|---|---|
-| Multiple records in one DML | All IDs collected into `Set<Id>` before a single `enqueueJob` call |
-| Callout in trigger context | Callout deferred to `ProjetlyQueueable` (async, `Database.AllowsCallouts`) |
-| SOQL inside loops | No SOQL queries exist anywhere in trigger or handler code |
-| DML inside loops | No DML in any trigger or handler |
-| Queueable depth | One job per trigger per transaction; retries chain but cap at 3 |
-| Heap and CPU | `Set<Id>` deduplication keeps payloads compact; no unbounded collections |
+| Concern                     | How it is handled                                                          |
+| --------------------------- | -------------------------------------------------------------------------- |
+| Multiple records in one DML | All IDs collected into `Set<Id>` before a single `enqueueJob` call         |
+| Callout in trigger context  | Callout deferred to `ProjetlyQueueable` (async, `Database.AllowsCallouts`) |
+| SOQL inside loops           | No SOQL queries exist anywhere in trigger or handler code                  |
+| DML inside loops            | No DML in any trigger or handler                                           |
+| Queueable depth             | One job per trigger per transaction; retries chain but cap at 3            |
+| Heap and CPU                | `Set<Id>` deduplication keeps payloads compact; no unbounded collections   |
 
 ---
 
 ## AppExchange Compliance
 
-| Requirement | Status |
-|---|---|
+| Requirement                        | Status                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
 | No hardcoded sensitive credentials | Named Credential handles endpoint; HMAC secret stored in protected Custom Metadata field |
-| HTTPS-only callouts | Named Credential endpoint enforces HTTPS |
-| No prohibited Apex patterns | No dynamic SOQL, no unrestricted callouts |
-| CRUD/FLS | Package reads no custom object data; standard object triggers are read-only |
-| Namespace declared | `Projetly` namespace applied to all components |
-| No test code in production classes | Test mock and test class are `@isTest` isolated |
-| Minimum 75% code coverage | Current coverage exceeds 85% |
-| No debug-only production code | All `System.debug` calls use appropriate logging levels (WARN / ERROR) |
-| Bulk-safe triggers | Verified against 200-record insert and 50-record delete in tests |
-| Payload signing | All outbound requests signed with HMAC-SHA256; secret stored in protected field |
+| HTTPS-only callouts                | Named Credential endpoint enforces HTTPS                                                 |
+| No prohibited Apex patterns        | No dynamic SOQL, no unrestricted callouts                                                |
+| CRUD/FLS                           | Package reads no custom object data; standard object triggers are read-only              |
+| Namespace declared                 | `Projetly` namespace applied to all components                                           |
+| No test code in production classes | Test mock and test class are `@isTest` isolated                                          |
+| Minimum 75% code coverage          | Current coverage exceeds 85%                                                             |
+| No debug-only production code      | All `System.debug` calls use appropriate logging levels (WARN / ERROR)                   |
+| Bulk-safe triggers                 | Verified against 200-record insert and 50-record delete in tests                         |
+| Payload signing                    | All outbound requests signed with HMAC-SHA256; secret stored in protected field          |
 
 ---
 
@@ -473,6 +473,7 @@ sf apex run test \
 5. Open a pull request against `main` with a clear description of what changed and why.
 
 **Code standards:**
+
 - No SOQL or DML inside loops
 - All callouts must go through Named Credentials
 - Every new code path must have a corresponding `@isTest` method

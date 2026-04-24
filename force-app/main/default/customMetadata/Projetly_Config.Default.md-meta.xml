@@ -8,4 +8,8 @@
         <field>Webhook_Secret__c</field>
         <value xsi:type="xsd:string">placeholder-secret-replace-before-go-live</value>
     </values>
+    <values>
+        <field>Projetly_Key__c</field>
+        <value xsi:type="xsd:string">placeholder-key-replace-before-go-live</value>
+    </values>
 </CustomMetadata>
