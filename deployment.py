@@ -1,515 +1,236 @@
-#!/usr/bin/env python3
-"""
-Projetly 2GP Deployment Automation
-------------------------------------
-Handles: prerequisites check, org auth, source deploy, Apex tests,
-package version create/promote/install, and full release pipeline.
-
-Install dependencies first:
-    pip install -r requirements.txt
-
-Usage:
-    python deployment.py <command> [options]
-    python deployment.py --help
-"""
-
-import argparse
-import json
 import subprocess
+import json
+import os
 import sys
-from pathlib import Path
 
-try:
-    from colorama import Fore, Style, init as colorama_init
-    colorama_init(autoreset=True)
-    _C = True
-except ImportError:
-    _C = False
+DEBUG = True
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
-PROJECT_ROOT   = Path(__file__).parent
-SFDX_PROJECT   = PROJECT_ROOT / "sfdx-project.json"
-PACKAGE_NAME   = "ProjetlyCore"
-SOURCE_DIR     = "force-app"
-API_VERSION    = "66.0"
-DEFAULT_WAIT   = 30
-DEFAULT_DEVHUB = "jaitej123"
-DEFAULT_ORG    = "jaitej123"
+def log(msg):
+    if DEBUG:
+        print(f"[DEBUG] {msg}")
 
-# ── Output helpers ────────────────────────────────────────────────────────────
-
-def _ok(msg):   print((Fore.GREEN  + "✓ " + Style.RESET_ALL if _C else "[OK]  ") + msg)
-def _info(msg): print((Fore.CYAN   + "» " + Style.RESET_ALL if _C else "[..]  ") + msg)
-def _warn(msg): print((Fore.YELLOW + "! " + Style.RESET_ALL if _C else "[!!]  ") + msg)
-def _fail(msg): print((Fore.RED    + "✗ " + Style.RESET_ALL if _C else "[ERR] ") + msg, file=sys.stderr)
-
-def _header(msg):
-    bar = "─" * 62
-    if _C:
-        print(Fore.MAGENTA + Style.BRIGHT + f"\n{bar}\n  {msg}\n{bar}" + Style.RESET_ALL)
-    else:
-        print(f"\n{bar}\n  {msg}\n{bar}")
-
-# ── Shell helper ──────────────────────────────────────────────────────────────
-
-def _run(cmd: list, capture: bool = False) -> subprocess.CompletedProcess:
-    """Run a CLI command. Streams output by default. Exits on non-zero return code."""
-    _info("$ " + " ".join(str(c) for c in cmd))
+def run(cmd, capture=True, check=False):
+    """Run a shell command and return the CompletedProcess result."""
+    log(f"Running: {' '.join(cmd)}")
+    # On Windows, executables like sf/npm are .cmd wrappers that only resolve
+    # when the shell is involved (shell=True). Safe on Linux/Mac without it.
     result = subprocess.run(
         cmd,
         capture_output=capture,
         text=True,
-        cwd=PROJECT_ROOT,
+        check=check,
+        shell=is_windows(),
     )
-    if result.returncode != 0:
-        _fail(f"Command failed (exit {result.returncode})")
-        if capture and result.stderr:
-            print(result.stderr, file=sys.stderr)
-        sys.exit(result.returncode)
+    if capture and result.stdout:
+        log(f"stdout: {result.stdout.strip()}")
+    if capture and result.stderr:
+        log(f"stderr: {result.stderr.strip()}")
     return result
 
-# ── sfdx-project.json helpers ─────────────────────────────────────────────────
+def is_windows():
+    return sys.platform.startswith("win")
 
-def _load_project() -> dict:
-    with open(SFDX_PROJECT, encoding="utf-8") as f:
-        return json.load(f)
+# ─── Step 1: Node.js ──────────────────────────────────────────────────────────
 
-def _save_project(data: dict):
-    with open(SFDX_PROJECT, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-
-def _current_version() -> str:
-    for pkg in _load_project().get("packageDirectories", []):
-        if pkg.get("package") == PACKAGE_NAME:
-            return pkg.get("versionNumber", "unknown")
-    return "unknown"
-
-def _register_alias(alias: str, version_id: str):
-    data = _load_project()
-    data.setdefault("packageAliases", {})[alias] = version_id
-    _save_project(data)
-    _ok(f"Alias '{alias}' → {version_id} saved to sfdx-project.json")
-
-def _extract_version_id(text: str) -> str | None:
-    """Pull the first 04t… token out of command output."""
-    for line in text.splitlines():
-        for token in line.split():
-            t = token.strip(",'\"")
-            if t.startswith("04t") and len(t) >= 15:
-                return t
-    return None
-
-# ── Individual steps ──────────────────────────────────────────────────────────
-
-def _install_sf_cli():
-    """Install Salesforce CLI via npm, or print manual instructions if npm is absent."""
-    _warn("Salesforce CLI (sf) not found — attempting to install via npm...")
-    npm = subprocess.run(["npm", "--version"], capture_output=True, text=True)
-    if npm.returncode != 0:
-        _fail("npm not found. Install Node.js first: https://nodejs.org/en/download")
-        _fail("Then run:  npm install --global @salesforce/cli")
-        sys.exit(1)
-    result = subprocess.run(
-        ["npm", "install", "--global", "@salesforce/cli"],
-        text=True,
-        cwd=PROJECT_ROOT,
-    )
+def check_nodejs():
+    print("\n[1/5] Checking Node.js...")
+    result = run(["node", "-v"])
     if result.returncode != 0:
-        _fail("Automatic install failed.")
-        _fail("Install manually: https://developer.salesforce.com/tools/salesforcecli")
+        print("ERROR: Node.js is not installed. Please install Node.js before proceeding.")
         sys.exit(1)
-    _ok("Salesforce CLI installed successfully")
+    version = result.stdout.strip()
+    print(f"      Node.js found: {version}")
+    return version
 
+# ─── Step 2: Salesforce CLI ───────────────────────────────────────────────────
 
-def check_prerequisites():
-    _header("PREREQUISITES")
+def _sf_version():
+    result = run(["sf", "--version"])
+    return result if result.returncode == 0 else None
 
-    if sys.version_info < (3, 9):
-        _fail(f"Python 3.9+ required (found {sys.version_info.major}.{sys.version_info.minor})")
+def install_sf_cli():
+    print("      Salesforce CLI not found. Installing via npm...")
+    result = run(["npm", "install", "-g", "@salesforce/cli"], capture=False)
+    if result.returncode != 0:
+        print("ERROR: npm install failed. Check your npm installation and try again.")
         sys.exit(1)
-    _ok(f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
 
-    r = subprocess.run(["sf", "version"], capture_output=True, text=True)
-    if r.returncode != 0:
-        _install_sf_cli()
-        r = subprocess.run(["sf", "version"], capture_output=True, text=True)
-        if r.returncode != 0:
-            _fail("Salesforce CLI still not available after install — restart your terminal and retry")
+def check_sf_cli():
+    print("\n[2/5] Checking Salesforce CLI...")
+    result = _sf_version()
+    if result is None:
+        install_sf_cli()
+        result = _sf_version()
+        if result is None:
+            print("ERROR: Salesforce CLI installation failed. Install manually: npm install -g @salesforce/cli")
             sys.exit(1)
-    _ok("Salesforce CLI: " + r.stdout.strip().splitlines()[0])
+    version = result.stdout.strip().split("\n")[0]
+    print(f"      Salesforce CLI found: {version}")
+    return version
 
-    if not SFDX_PROJECT.exists():
-        _fail("sfdx-project.json not found — run this script from the project root")
-        sys.exit(1)
-    _ok("sfdx-project.json found")
-    _ok(f"Current package version: {_current_version()}")
+# ─── Step 3: Dev Hub ──────────────────────────────────────────────────────────
 
+def _parse_dev_hub(output):
+    try:
+        data = json.loads(output)
+        orgs = data.get("result", {})
+        # sf org list --json returns {nonScratchOrgs: [...], scratchOrgs: [...]}
+        all_orgs = []
+        if isinstance(orgs, dict):
+            all_orgs = orgs.get("nonScratchOrgs", []) + orgs.get("scratchOrgs", [])
+        elif isinstance(orgs, list):
+            all_orgs = orgs
+        return any(org.get("isDevHub") for org in all_orgs)
+    except (json.JSONDecodeError, AttributeError):
+        return False
 
-def check_devhub(devhub_alias: str = DEFAULT_DEVHUB):
-    """Verify a Dev Hub org is authenticated; if none found, open browser login."""
-    _header("DEV HUB CHECK")
+def check_dev_hub():
+    print("\n[3/5] Checking Dev Hub authorization...")
+    result = run(["sf", "org", "list", "--json"])
+    if _parse_dev_hub(result.stdout):
+        print("      Dev Hub: already authorized.")
+        return True
 
-    result = subprocess.run(
-        ["sf", "org", "list", "--json"],
-        capture_output=True, text=True, cwd=PROJECT_ROOT,
+    print("      No Dev Hub found. Launching web login...")
+    login = run(
+        ["sf", "org", "login", "web", "--set-default-dev-hub"],
+        capture=False,
     )
+    if login.returncode != 0:
+        print("ERROR: Dev Hub authorization failed. Run manually: sf org login web --set-default-dev-hub")
+        sys.exit(1)
 
-    if result.returncode == 0:
-        try:
-            orgs = json.loads(result.stdout).get("result", {})
-            dev_hubs = orgs.get("devHubs", [])
-            if dev_hubs:
-                aliases = [o.get("alias") or o.get("username", "") for o in dev_hubs]
-                _ok(f"Dev Hub(s) already authenticated: {', '.join(a for a in aliases if a)}")
-                return
-        except (json.JSONDecodeError, AttributeError):
-            pass
+    # Re-check after login
+    result = run(["sf", "org", "list", "--json"])
+    if not _parse_dev_hub(result.stdout):
+        print("ERROR: Dev Hub still not found after login. Exiting.")
+        sys.exit(1)
 
-    _warn("No Dev Hub org found. Opening browser to authenticate one...")
-    _run([
-        "sf", "org", "login", "web",
-        "--alias", devhub_alias,
-        "--set-default-dev-hub",
-    ])
-    _ok(f"Dev Hub authenticated as '{devhub_alias}'")
+    print("      Dev Hub: authorized successfully.")
+    return True
 
+# ─── Step 4: Read package name ────────────────────────────────────────────────
 
-def authenticate(alias: str, set_as_devhub: bool = False):
-    _header(f"AUTHENTICATE{' (Dev Hub)' if set_as_devhub else ''}")
-    cmd = ["sf", "org", "login", "web", "--alias", alias]
-    if set_as_devhub:
-        cmd.append("--set-default-dev-hub")
-    _run(cmd)
-    _ok(f"Authenticated as '{alias}'")
+def read_package_name():
+    print("\n[4/5] Reading package name from sfdx-project.json...")
+    project_file = os.path.join(os.getcwd(), "sfdx-project.json")
+    if not os.path.exists(project_file):
+        print("ERROR: sfdx-project.json not found in the current directory.")
+        sys.exit(1)
+    try:
+        with open(project_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        packages = data.get("packageDirectories", [])
+        for pkg in packages:
+            name = pkg.get("package")
+            if name:
+                print(f"      Package name: {name}")
+                return name
+        print("ERROR: No 'package' key found in any packageDirectories entry.")
+        sys.exit(1)
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: Failed to parse sfdx-project.json: {exc}")
+        sys.exit(1)
 
+# ─── Step 5: Create package version ──────────────────────────────────────────
 
-def deploy_source(target_org: str):
-    _header("DEPLOY SOURCE")
-    _run([
-        "sf", "project", "deploy", "start",
-        "--source-dir", SOURCE_DIR,
-        "--target-org", target_org,
-        "--api-version", API_VERSION,
-    ])
-    _ok("Source deployed successfully")
-
-
-def run_tests(target_org: str, wait: int = DEFAULT_WAIT):
-    _header("APEX TESTS")
-    _run([
-        "sf", "apex", "run", "test",
-        "--test-level", "RunLocalTests",
-        "--result-format", "human",
-        "--target-org", target_org,
-        "--wait", str(wait),
-    ])
-    _ok("All tests passed")
-
-
-def create_scratch_org(alias: str, devhub: str, duration: int = 7):
-    _header("CREATE SCRATCH ORG")
-    _run([
-        "sf", "org", "create", "scratch",
-        "--definition-file", "config/project-scratch-def.json",
-        "--alias", alias,
-        "--target-dev-hub", devhub,
-        "--duration-days", str(duration),
-        "--set-default",
-    ])
-    _ok(f"Scratch org '{alias}' created (expires in {duration} days)")
-
-
-def delete_scratch_org(alias: str):
-    _header("DELETE SCRATCH ORG")
-    _run(["sf", "org", "delete", "scratch", "--target-org", alias, "--no-prompt"])
-    _ok(f"Scratch org '{alias}' deleted")
-
-
-def create_package_version(devhub: str, installation_key: str = "", wait: int = DEFAULT_WAIT) -> str | None:
-    _header("CREATE PACKAGE VERSION")
+def create_package_version(package_name):
+    print(f"\n[5/6] Creating package version for '{package_name}'...")
+    print("      This may take several minutes (--wait 10)...")
     cmd = [
         "sf", "package", "version", "create",
-        "--package", PACKAGE_NAME,
-        "--target-dev-hub", devhub,
-        "--wait", str(wait),
+        "--package", package_name,
+        "--installation-key-bypass",
+        "--wait", "10",
         "--code-coverage",
         "--json",
     ]
-    if installation_key:
-        cmd += ["--installation-key", installation_key]
-    else:
-        cmd.append("--installation-key-bypass")
+    result = run(cmd)
+    if result.returncode != 0:
+        print("ERROR: Package version creation failed.")
+        print(result.stderr or result.stdout)
+        sys.exit(1)
 
-    result = _run(cmd, capture=True)
-
-    version_id = None
     try:
         data = json.loads(result.stdout)
-        version_id = (
-            data.get("result", {}).get("SubscriberPackageVersionId")
-            or _extract_version_id(result.stdout)
-        )
-    except (json.JSONDecodeError, AttributeError):
-        version_id = _extract_version_id(result.stdout)
-
-    if version_id:
-        _ok(f"Package version created: {version_id}")
-        base = _current_version().replace(".NEXT", "")
-        _register_alias(f"{PACKAGE_NAME}@{base}", version_id)
-    else:
-        _warn("Could not extract version ID — update sfdx-project.json packageAliases manually")
+    except json.JSONDecodeError as exc:
+        print(f"ERROR: Could not parse CLI response as JSON: {exc}")
         print(result.stdout)
+        sys.exit(1)
 
-    return version_id
+    if data.get("status") != 0:
+        msg = data.get("message") or data.get("name") or "Unknown error"
+        print(f"ERROR: {msg}")
+        sys.exit(1)
 
-
-def promote_package_version(version_id: str, devhub: str):
-    _header("PROMOTE PACKAGE VERSION")
-    _run([
-        "sf", "package", "version", "promote",
-        "--package", version_id,
-        "--target-dev-hub", devhub,
-        "--no-prompt",
-    ])
-    _ok(f"Version {version_id} promoted to Released")
-
-
-def install_package(version_id: str, target_org: str, installation_key: str = "", wait: int = DEFAULT_WAIT):
-    _header("INSTALL PACKAGE")
-    cmd = [
-        "sf", "package", "install",
-        "--package", version_id,
-        "--target-org", target_org,
-        "--wait", str(wait),
-        "--no-prompt",
-    ]
-    if installation_key:
-        cmd += ["--installation-key", installation_key]
-    _run(cmd)
-    _ok(f"Package {version_id} installed into '{target_org}'")
-
-
-def list_package_versions(devhub: str):
-    _header("PACKAGE VERSIONS")
-    _run([
-        "sf", "package", "version", "list",
-        "--package", PACKAGE_NAME,
-        "--target-dev-hub", devhub,
-        "--order-by", "CreatedDate",
-        "--verbose",
-    ])
-
-
-# ── Workflow orchestration ────────────────────────────────────────────────────
-
-def _workflow_check(args):
-    check_prerequisites()
-
-
-def _workflow_auth(args):
-    authenticate(args.alias, args.devhub)
-
-
-def _workflow_deploy(args):
-    check_prerequisites()
-    deploy_source(args.target_org)
-    if not args.skip_tests:
-        run_tests(args.target_org, args.wait)
-
-
-def _workflow_test(args):
-    check_prerequisites()
-    run_tests(args.target_org, args.wait)
-
-
-def _workflow_version(args):
-    check_prerequisites()
-    check_devhub(args.devhub)
-    version_id = create_package_version(args.devhub, args.installation_key, args.wait)
-    if args.promote and version_id:
-        promote_package_version(version_id, args.devhub)
-
-
-def _workflow_install(args):
-    check_prerequisites()
-    install_package(args.package, args.target_org, args.installation_key, args.wait)
-
-
-def _workflow_versions(args):
-    check_prerequisites()
-    check_devhub(args.devhub)
-    list_package_versions(args.devhub)
-
-
-def _workflow_release(args):
-    """
-    Full release pipeline:
-      1. Prerequisites check
-      2. (Optional) Create scratch org
-      3. Deploy source to scratch org
-      4. Run all Apex tests
-      5. Create package version
-      6. (Optional) Promote to Released
-      7. (Optional) Install into target org
-      8. (Optional) Delete scratch org
-    """
-    check_prerequisites()
-    check_devhub(args.devhub)
-
-    if args.create_scratch:
-        create_scratch_org(args.scratch_alias, args.devhub, args.duration)
-
-    deploy_source(args.scratch_alias)
-    run_tests(args.scratch_alias, args.wait)
-
-    version_id = create_package_version(args.devhub, args.installation_key, args.wait)
-
-    if args.promote and version_id:
-        promote_package_version(version_id, args.devhub)
-
-    if args.install and version_id:
-        install_package(version_id, args.target_org, args.installation_key, args.wait)
-
-    if args.delete_scratch and args.create_scratch:
-        delete_scratch_org(args.scratch_alias)
-
-    _header("RELEASE COMPLETE")
-    if version_id:
-        _ok(f"Version ID: {version_id}")
-    else:
-        _warn("Version ID unknown — check sfdx-project.json")
-
-
-# ── CLI definition ────────────────────────────────────────────────────────────
-
-def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="deployment.py",
-        description="Projetly 2GP deployment automation",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-QUICK REFERENCE
-───────────────────────────────────────────────────────────────
-Install dependencies
-  pip install -r requirements.txt
-
-Verify setup
-  python deployment.py check
-
-Authenticate orgs
-  python deployment.py auth --alias mydevhub --devhub
-  python deployment.py auth --alias myorg
-
-Deploy source to an org + run tests
-  python deployment.py deploy --target-org myorg
-  python deployment.py deploy --target-org myorg --skip-tests
-
-Run tests only
-  python deployment.py test --target-org myorg
-
-Create a new package version
-  python deployment.py version --devhub mydevhub
-  python deployment.py version --devhub mydevhub --promote
-
-Install a package version
-  python deployment.py install --package 04tXXXXXXXXXXXXX --target-org myorg
-
-List all package versions
-  python deployment.py versions --devhub mydevhub
-
-Full release pipeline (scratch org → deploy → test → build → promote)
-  python deployment.py release \\
-      --devhub mydevhub \\
-      --scratch-alias projetly-scratch \\
-      --create-scratch \\
-      --promote \\
-      --delete-scratch
-───────────────────────────────────────────────────────────────
-        """,
+    result_data = data.get("result", {})
+    subscriber_id = result_data.get("SubscriberPackageVersionId", "")
+    install_url = result_data.get("InstallUrl") or (
+        f"https://login.salesforce.com/packaging/installPackage.apexp?p0={subscriber_id}"
+        if subscriber_id else ""
     )
-    sub = p.add_subparsers(dest="command", required=True)
+    print("      Package version created successfully.")
+    return subscriber_id, install_url
 
-    def _devhub(s): s.add_argument("--devhub", default=DEFAULT_DEVHUB, metavar="ALIAS",
-                                    help=f"Dev Hub org alias (default: {DEFAULT_DEVHUB})")
-    def _org(s):    s.add_argument("--target-org", default=DEFAULT_ORG, metavar="ALIAS",
-                                    help=f"Target org alias (default: {DEFAULT_ORG})")
-    def _wait(s):   s.add_argument("--wait", type=int, default=DEFAULT_WAIT, metavar="MIN",
-                                    help=f"Minutes to wait for async operations (default: {DEFAULT_WAIT})")
-    def _key(s):    s.add_argument("--installation-key", default="", metavar="KEY",
-                                    help="Package installation key (omit to bypass key requirement)")
+# ─── Step 6: Promote package version ─────────────────────────────────────────
 
-    # ── check
-    sub.add_parser("check", help="Verify prerequisites (SF CLI, Python, project file)")
+def promote_package_version(subscriber_id):
+    print(f"\n[6/6] Promoting package version '{subscriber_id}'...")
+    # Promotion requires the 04t (SubscriberPackageVersionId) prefix
+    if not subscriber_id or not subscriber_id.startswith("04t"):
+        print("ERROR: Invalid Subscriber Package Version Id — cannot promote.")
+        sys.exit(1)
 
-    # ── auth
-    auth_p = sub.add_parser("auth", help="Authenticate an org via browser (sf org login web)")
-    auth_p.add_argument("--alias", required=True, metavar="ALIAS", help="Alias to assign to the authenticated org")
-    auth_p.add_argument("--devhub", action="store_true", help="Set this org as the default Dev Hub")
+    cmd = [
+        "sf", "package", "version", "promote",
+        "--package", subscriber_id,
+        "--no-prompt",
+        "--json",
+    ]
+    result = run(cmd)
 
-    # ── deploy
-    deploy_p = sub.add_parser("deploy", help="Deploy source metadata and run Apex tests")
-    _org(deploy_p); _wait(deploy_p)
-    deploy_p.add_argument("--skip-tests", action="store_true", help="Skip Apex test run after deploy")
+    # sf may return exit code 0 even on some warnings; parse JSON to be sure
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        data = {}
 
-    # ── test
-    test_p = sub.add_parser("test", help="Run all local Apex tests")
-    _org(test_p); _wait(test_p)
+    if result.returncode != 0 or data.get("status") != 0:
+        msg = data.get("message") or result.stderr or result.stdout or "Unknown error"
+        print(f"ERROR: Package promotion failed — {msg}")
+        sys.exit(1)
 
-    # ── version
-    ver_p = sub.add_parser("version", help="Create a new 2GP package version")
-    _devhub(ver_p); _key(ver_p); _wait(ver_p)
-    ver_p.add_argument("--promote", action="store_true",
-                        help="Promote the version to Released immediately after creation")
+    print("      Package version promoted to released successfully.")
 
-    # ── install
-    inst_p = sub.add_parser("install", help="Install a package version into an org")
-    inst_p.add_argument("--package", required=True, metavar="ID_OR_ALIAS",
-                         help="Subscriber package version ID (04tXXX) or sfdx-project.json alias")
-    _org(inst_p); _key(inst_p); _wait(inst_p)
+# ─── Summary ──────────────────────────────────────────────────────────────────
 
-    # ── versions
-    vlist_p = sub.add_parser("versions", help="List all versions of the package")
-    _devhub(vlist_p)
+def print_summary(node_ver, sf_ver, subscriber_id, install_url, promoted):
+    print("\n" + "=" * 40)
+    print("=== Deployment Summary ===")
+    print("=" * 40)
+    print(f"Node.js:                  OK ({node_ver})")
+    print(f"Salesforce CLI:           OK ({sf_ver.split(' ')[0] if sf_ver else 'installed'})")
+    print("Dev Hub:                  Authorized")
+    print("Package Version Created:  SUCCESS")
+    print(f"Package Version Promoted: {'SUCCESS' if promoted else 'SKIPPED'}")
+    print()
+    print(f"Subscriber Package Version Id: {subscriber_id}")
+    print(f"Installation URL:              {install_url}")
+    print("=" * 40)
 
-    # ── release
-    rel_p = sub.add_parser("release", help="Full release pipeline: scratch org → deploy → test → build → promote")
-    _devhub(rel_p); _key(rel_p); _wait(rel_p)
-    rel_p.add_argument("--scratch-alias", default="projetly-scratch", metavar="ALIAS",
-                        help="Alias for the scratch org used during the build (default: projetly-scratch)")
-    rel_p.add_argument("--create-scratch", action="store_true",
-                        help="Create a fresh scratch org before deploying")
-    rel_p.add_argument("--duration", type=int, default=7, metavar="DAYS",
-                        help="Scratch org duration in days when --create-scratch is used (default: 7)")
-    rel_p.add_argument("--delete-scratch", action="store_true",
-                        help="Delete the scratch org after the build completes")
-    rel_p.add_argument("--promote", action="store_true",
-                        help="Promote the package version to Released after creation")
-    rel_p.add_argument("--install", action="store_true",
-                        help="Install the new version into --target-org after creation")
-    _org(rel_p)
-
-    return p
-
-
-_DISPATCH = {
-    "check":    _workflow_check,
-    "auth":     _workflow_auth,
-    "deploy":   _workflow_deploy,
-    "test":     _workflow_test,
-    "version":  _workflow_version,
-    "install":  _workflow_install,
-    "versions": _workflow_versions,
-    "release":  _workflow_release,
-}
-
+# ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = _build_parser()
-    args = parser.parse_args()
-    _DISPATCH[args.command](args)
-
+    print("Starting Salesforce 2GP deployment script...")
+    node_ver     = check_nodejs()
+    sf_ver       = check_sf_cli()
+    check_dev_hub()
+    package_name = read_package_name()
+    subscriber_id, install_url = create_package_version(package_name)
+    promote_package_version(subscriber_id)
+    print_summary(node_ver, sf_ver, subscriber_id, install_url, promoted=True)
 
 if __name__ == "__main__":
     main()
