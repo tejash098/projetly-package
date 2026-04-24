@@ -219,6 +219,15 @@ private class ProjetlyTest {
         System.assertNotEquals(null, secret, 'getWebhookSecret must return a non-null value');
     }
 
+    @isTest
+    static void testGetFunctionKey() {
+        Test.startTest();
+        String key = ProjetlyWebhookService.getFunctionKey();
+        Test.stopTest();
+
+        System.assertNotEquals(null, key, 'getFunctionKey must return a non-null value');
+    }
+
     // ─── Direct service tests ─────────────────────────────────────────────────
 
     @isTest

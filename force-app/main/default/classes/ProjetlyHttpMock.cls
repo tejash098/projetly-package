@@ -15,6 +15,8 @@ global class ProjetlyHttpMock implements HttpCalloutMock {
         // sha256= prefix (7 chars) + HmacSHA256 hex output (64 chars) = 71 chars
         System.assertEquals(71, signature.length(), 'x-sf-signature must be 71 characters');
 
+        System.assertNotEquals(null, req.getHeader('x-functions-key'), 'x-functions-key header must be present');
+
         HttpResponse res = new HttpResponse();
         res.setStatusCode(200);
         res.setBody('{"status":true}');

@@ -25,8 +25,8 @@ public class ProjetlyWebhookService {
             String secret = getWebhookSecret();
             System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: secret fetched successfully');
             String signature = generateSignature(timestamp, body, secret);
-            String projetlyKey = getProjetlyKey();
-            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: projetlyKey fetched successfully');
+            String functionKey = getFunctionKey();
+            System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: functionKey fetched successfully');
             System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: signature=' + signature);
 
             // --- HEADERS ---
@@ -40,7 +40,7 @@ public class ProjetlyWebhookService {
             req.setHeader('x-sf-request-id', requestId);
             req.setHeader('x-sf-timestamp', timestamp);
             req.setHeader('x-sf-signature', signature);
-            req.setHeader('projetly-key', projetlyKey);
+            req.setHeader('x-functions-key', functionKey);
             req.setBody(body);
 
             System.debug(LoggingLevel.DEBUG, 'ProjetlyWebhookService.sendBatch: sending HTTP request to webhook endpoint');
@@ -74,15 +74,15 @@ public class ProjetlyWebhookService {
     }
 
     @TestVisible
-    private static String getProjetlyKey() {
-        System.debug(LoggingLevel.DEBUG, 'DEBUG: Fetching projetly key');
+    private static String getFunctionKey() {
+        System.debug(LoggingLevel.DEBUG, 'DEBUG: Fetching function key');
         List<Projetly_Config__mdt> configs = [
-            SELECT Projetly_Key__c
+            SELECT Function_Key__c
             FROM Projetly__Projetly_Config__mdt
             LIMIT 1
         ];
-        if (!configs.isEmpty() && configs[0].Projetly_Key__c != null) {
-            return configs[0].Projetly_Key__c;
+        if (!configs.isEmpty() && configs[0].Function_Key__c != null) {
+            return configs[0].Function_Key__c;
         }
         return '';
     }
